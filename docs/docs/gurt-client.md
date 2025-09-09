@@ -14,7 +14,7 @@ The GURT client library (for Rust) provides a high-level, HTTP-like interface fo
 
 Install via Cargo:
 ```bash
-cargo add gurt
+cargo add gurtlib
 ```
 
 ## Quick Start

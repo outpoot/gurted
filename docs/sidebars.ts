@@ -45,6 +45,7 @@ const sidebars: SidebarsConfig = {
           items: [
             'lua/intro',
             'lua/elements',
+            'lua/crumbs',
             'lua/audio',
             'lua/canvas',
             'lua/network',

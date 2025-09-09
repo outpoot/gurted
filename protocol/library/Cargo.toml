@@ -1,5 +1,5 @@
 [package]
-name = "gurt"
+name = "gurtlib"
 version = "0.1.0"
 edition = "2021"
 authors = ["FaceDev"]
@@ -8,7 +8,7 @@ repository = "https://github.com/outpoot/gurted"
 description = "Official GURT:// protocol implementation"
 
 [lib]
-name = "gurt"
+name = "gurtlib"
 crate-type = ["cdylib", "lib"]
 
 [dependencies]

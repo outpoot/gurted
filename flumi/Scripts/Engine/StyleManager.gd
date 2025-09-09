@@ -68,13 +68,18 @@ static func apply_element_styles(node: Control, element: HTMLParser.HTMLElement,
 				if width == "100%":
 					node.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 					node.custom_minimum_size.x = 0
+					if node is PanelContainer and node.get_child_count() > 0:
+						var vbox = node.get_child(0)
+						if vbox is VBoxContainer:
+							vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+					node.set_meta("size_flags_set_by_style_manager", true)
 				else:
 					# For other percentages, convert to viewport-relative size
 					var percent = float(width.replace("%", "")) / 100.0
 					var viewport_width = node.get_viewport().get_visible_rect().size.x if node.get_viewport() else 800
 					node.custom_minimum_size.x = viewport_width * percent
-				node.set_meta("size_flags_set_by_style_manager", true)
-				node.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+					node.set_meta("size_flags_set_by_style_manager", true)
+					node.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 			else:
 				node.custom_minimum_size.x = width
 				node.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
@@ -402,13 +407,17 @@ static func apply_margin_styles_to_container(margin_container: MarginContainer, 
 			if margin_val != null:
 				margin_container.add_theme_constant_override(theme_key, margin_val)
 
-static func apply_styles_to_label(label: Control, styles: Dictionary, element: HTMLParser.HTMLElement, parser, text_override: String = "") -> void:
+static func apply_styles_to_label(label: Control, styles: Dictionary, element: HTMLParser.HTMLElement, parser, text_override: String = "", is_refresh: bool = false) -> void:
 	if label is Button:
 		apply_font_to_button(label, styles)
 		return
 	
 	if not label is RichTextLabel:
 		return
+	
+	if not is_refresh and styles.has("font-family") and styles["font-family"] not in ["sans-serif", "serif", "monospace"]:
+		var main_node = Engine.get_main_loop().current_scene
+		main_node.register_font_dependent_element(label, styles, element, parser)
 	
 	var text = text_override if text_override != "" else (element.get_preserved_text() if element.tag_name == "pre" else element.get_bbcode_formatted_text(parser))
 

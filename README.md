@@ -3,7 +3,7 @@
 [Website](https://gurted.com/) | [Docs](https://docs.gurted.com/) | [License](LICENSE) | [YouTube video](https://www.youtube.com)
 
 Gurted is an ecosystem similar to the World Wide Web, it features:
-- ⚡ A custom protocol (TCP-based) named `GURT://` with mendatory TLS secutity with a [spec](docs.gurted.com)
+- ⚡ A custom protocol (TCP-based) named `GURT://` with mandatory TLS security with a [spec](docs.gurted.com)
 - 🌐 A custom **wayfinder** (browser) written in Rust and GDScript with [Godot](https://godotengine.org/)
 - 📄 A custom engine for HTML, CSS, and ***Lua*** (no JavaScript)
 - 🏷️ A custom **DNS** that allows users to create domains with TLDs such as `.based`, `.aura`, `.twin`, and many more

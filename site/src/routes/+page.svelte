@@ -272,7 +272,7 @@
 					<CardContent>
 						<pre class="bg-muted text-foreground overflow-x-auto rounded-lg p-4 text-sm"><code class="language-lua">{`<script>
 local heading = gurt.select('h1')
-heading:text('Dynamic Content!')
+heading.text = 'Dynamic Content!'
 
 local new_div = gurt.create('div', {
     style = 'bg-blue-500 p-4 rounded'

@@ -112,6 +112,25 @@ end
 -- Get all values for a parameter (for repeated params)
 local tags = gurt.location.query.getAll('tag')
 ```
+
+### gurt.width()
+
+Gets the available width of the site page viewport in pixels.
+
+```lua
+local pageWidth = gurt.width()
+trace.log('Page width: ' .. pageWidth .. ' pixels')
+```
+
+### gurt.height()
+
+Gets the available height of the site page viewport in pixels.
+
+```lua
+local pageHeight = gurt.height()
+trace.log('Page height: ' .. pageHeight .. ' pixels')
+```
+
 ## Global: trace
 
 The global trace table for logging messages to the console.

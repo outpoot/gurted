@@ -388,7 +388,7 @@ func render_content(html_bytes: PackedByteArray) -> void:
 		await parser.process_external_styles(current_domain)
 	
 	# Process and load all custom fonts defined in <font> tags
-	parser.process_fonts()
+	parser.process_fonts(current_domain)
 	FontManager.load_all_fonts()
 	
 	if parse_result.errors.size() > 0:
@@ -819,7 +819,7 @@ func refresh_fonts(font_name: String) -> void:
 		
 		if styles.has("font-family") and styles["font-family"] == font_name:
 			if is_instance_valid(label):
-				StyleManager.apply_styles_to_label(label, styles, element, parser)
+				StyleManager.apply_styles_to_label(label, styles, element, parser, "", true)
 
 func get_current_url() -> String:
 	return current_domain if not current_domain.is_empty() else ""

@@ -359,6 +359,12 @@ func _setup_threaded_gurt_api():
 		lua_vm.lua_setfield(-2, "on")
 		lua_vm.lua_setfield(-2, "body")
 	
+	lua_vm.lua_pushcallable(_gurt_get_width_handler, "gurt.width")
+	lua_vm.lua_setfield(-2, "width")
+	
+	lua_vm.lua_pushcallable(_gurt_get_height_handler, "gurt.height")
+	lua_vm.lua_setfield(-2, "height")
+	
 	lua_vm.lua_setglobal("gurt")
 
 func _setup_additional_lua_apis():
@@ -499,9 +505,46 @@ func _set_interval_handler(vm: LuauVM) -> int:
 func get_current_href() -> String:
 	var main_node = Engine.get_main_loop().current_scene
 	
+	return main_node.current_domain
+
+func _gurt_get_width_handler(vm: LuauVM) -> int:
+	var result = [0.0]
+	call_deferred("_get_width_sync", result)
+	while result[0] == 0.0:
+		OS.delay_msec(1)
+	vm.lua_pushnumber(result[0])
+	return 1
+
+func _gurt_get_height_handler(vm: LuauVM) -> int:
+	var result = [0.0]
+	call_deferred("_get_height_sync", result)
+	while result[0] == 0.0:
+		OS.delay_msec(1)
+	vm.lua_pushnumber(result[0])
+	return 1
+
+func _get_width_sync(result: Array):
+	var main_node = Engine.get_main_loop().current_scene
 	if main_node:
-		return main_node.current_domain
-	return ""
+		var active_tab = main_node.get_active_tab()
+		if active_tab and active_tab.website_container:
+			result[0] = active_tab.website_container.size.x
+		else:
+			result[0] = 1024.0
+	else:
+		result[0] = 1024.0
+
+func _get_height_sync(result: Array):
+	var main_node = Engine.get_main_loop().current_scene
+	if main_node:
+		var active_tab = main_node.get_active_tab()
+		if active_tab and active_tab.website_container:
+			result[0] = active_tab.website_container.size.y
+		else:
+			result[0] = 768.0
+	else:
+		result[0] = 768.0
+
 
 func _gurt_select_handler(vm: LuauVM) -> int:
 	var selector: String = vm.luaL_checkstring(1)
