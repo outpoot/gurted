@@ -58,7 +58,7 @@
 						<Download class="h-5 w-5" />
 						Download
 					</Button>
-					<Button variant="outline" size="lg" class="px-8 py-6 text-lg">
+					<Button variant="outline" size="lg" class="px-8 py-6 text-lg" href="https://docs.gurted.com">
 						<ExternalLink class="h-5 w-5" />
 						Documentation
 					</Button>
@@ -316,7 +316,7 @@ end)
 						<CardDescription>Create your first GURT site</CardDescription>
 					</CardHeader>
 					<CardContent>
-						<Button variant="outline" class="w-full">
+						<Button variant="outline" class="w-full" href="https://docs.gurted.com">
 							<ExternalLink class="h-4 w-4" />
 							Documentation
 						</Button>
