@@ -1,3 +1,4 @@
+// src/protocol.rs
 use std::fmt;
 
 pub const GURT_VERSION: &str = "1.0.0";
@@ -24,10 +25,10 @@ pub enum GurtStatusCode {
     Created = 201,
     Accepted = 202,
     NoContent = 204,
-    
+
     // Handshake
     SwitchingProtocols = 101,
-    
+
     // Client errors
     BadRequest = 400,
     Unauthorized = 401,
@@ -38,7 +39,7 @@ pub enum GurtStatusCode {
     TooLarge = 413,
     UnsupportedMediaType = 415,
     TooManyRequests = 429,
-    
+
     // Server errors
     InternalServerError = 500,
     NotImplemented = 501,
@@ -72,7 +73,7 @@ impl GurtStatusCode {
             _ => None,
         }
     }
-    
+
     pub fn message(&self) -> &'static str {
         match self {
             Self::Ok => "OK",
@@ -96,15 +97,18 @@ impl GurtStatusCode {
             Self::GatewayTimeout => "GATEWAY_TIMEOUT",
         }
     }
-    
+
     pub fn is_success(&self) -> bool {
-        matches!(self, Self::Ok | Self::Created | Self::Accepted | Self::NoContent)
+        matches!(
+            self,
+            Self::Ok | Self::Created | Self::Accepted | Self::NoContent
+        )
     }
-    
+
     pub fn is_client_error(&self) -> bool {
         (*self as u16) >= 400 && (*self as u16) < 500
     }
-    
+
     pub fn is_server_error(&self) -> bool {
         (*self as u16) >= 500
     }
@@ -119,5 +123,16 @@ impl From<GurtStatusCode> for u16 {
 impl fmt::Display for GurtStatusCode {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", *self as u16)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn status_messages() {
+        assert_eq!(GurtStatusCode::Ok.message(), "OK");
+        assert!(GurtStatusCode::from_u16(404).unwrap().is_client_error());
     }
 }

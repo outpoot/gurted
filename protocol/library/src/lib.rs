@@ -1,24 +1,27 @@
-pub mod protocol;
-pub mod crypto;
-pub mod server;
+// src/lib.rs
 pub mod client;
-pub mod error;
-pub mod message;
+mod crypto;
+mod error;
+mod message;
+mod protocol;
+mod server;
 
-pub use error::{GurtError, Result};
-pub use message::{GurtMessage, GurtRequest, GurtResponse, GurtMethod};
-pub use protocol::{GurtStatusCode, GURT_VERSION, DEFAULT_PORT};
-pub use crypto::{CryptoManager, TlsConfig, GURT_ALPN, TLS_VERSION};
-pub use server::{GurtServer, GurtHandler, ServerContext, Route};
 pub use client::{GurtClient, GurtClientConfig};
+pub use crypto::{
+    CryptoManager, DomainCertConfig, GURT_ALPN, TLS_VERSION, TlsConfig,
+};
+pub use error::{GurtError, Result};
+pub use message::{GurtMessage, GurtMethod, GurtRequest, GurtResponse};
+pub use protocol::{GurtStatusCode, GURT_VERSION, DEFAULT_PORT};
+pub use server::{
+    DomainCertFile, GurtHandler, GurtServer, Route, ServerContext,
+};
 
 pub mod prelude {
     pub use crate::{
-        GurtError, Result,
-        GurtMessage, GurtRequest, GurtResponse,
-        GURT_VERSION, DEFAULT_PORT,
-        CryptoManager, TlsConfig, GURT_ALPN, TLS_VERSION,
-        GurtServer, GurtHandler, ServerContext, Route,
-        GurtClient, GurtClientConfig,
+        CryptoManager, DomainCertConfig, DomainCertFile, GURT_ALPN, GURT_VERSION,
+        GurtClient, GurtClientConfig, GurtError, GurtHandler, GurtMessage,
+        GurtMethod, GurtRequest, GurtResponse, GurtServer, GurtStatusCode,
+        Result, TlsConfig, TLS_VERSION, DEFAULT_PORT,
     };
 }
