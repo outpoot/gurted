@@ -10,3 +10,8 @@ upx*
 flumi/build-scripts/Windows
 flumi/build-scripts/Linux
 flumi/build-scripts/MacOS
+/.idea/.gitignore
+/.idea/gurted.iml
+/.idea/modules.xml
+/.idea/prettier.xml
+/.idea/vcs.xml

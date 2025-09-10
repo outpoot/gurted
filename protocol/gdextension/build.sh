@@ -33,8 +33,8 @@ while [[ $# -gt 0 ]]; do
             echo ""
             echo "Options:"
             echo "  -t, --target TARGET      Build target (debug|release) [default: release]"
-            echo "  -p, --platform PLATFORM Target platform (windows|linux|macos|current)"
-            echo "  -h, --help              Show this help message"
+            echo "  -p, --platform PLATFORM  Target platform (windows|linux|macos|macos-arm|current)"
+            echo "  -h, --help               Show this help message"
             echo ""
             exit 0
             ;;
@@ -51,9 +51,17 @@ if [[ "$TARGET" != "debug" && "$TARGET" != "release" ]]; then
 fi
 
 if [[ -z "$PLATFORM" ]]; then
-    case "$(uname -s)" in
+    UNAME_S="$(uname -s)"
+    UNAME_M="$(uname -m)"
+    case "$UNAME_S" in
         Linux*)     PLATFORM="linux";;
-        Darwin*)    PLATFORM="macos";;
+        Darwin*)
+            if [[ "$UNAME_M" == "arm64" || "$UNAME_M" == "aarch64" ]]; then
+                PLATFORM="macos-arm"
+            else
+                PLATFORM="macos"
+            fi
+            ;;
         CYGWIN*|MINGW*|MSYS*) PLATFORM="windows";;
         *)          PLATFORM="current";;
     esac
@@ -85,6 +93,10 @@ case $PLATFORM in
         RUST_TARGET="x86_64-apple-darwin"
         LIB_NAME="libgurt_godot.dylib"
         ;;
+    macos-arm)
+        RUST_TARGET="aarch64-apple-darwin"
+        LIB_NAME="libgurt_godot.dylib"
+        ;;
     current)
         RUST_TARGET=""
         case "$(uname -s)" in
@@ -111,13 +123,13 @@ if [[ "$TARGET" == "release" ]]; then
 fi
 
 if [[ -n "$RUST_TARGET" ]]; then
-    print_info "Installing Rust target: $RUST_TARGET"
-    rustup target add "$RUST_TARGET"
+    print_info "Ensuring Rust target installed: $RUST_TARGET"
+    rustup target add "$RUST_TARGET" >/dev/null 2>&1 || true
     BUILD_CMD="$BUILD_CMD --target $RUST_TARGET"
 fi
 
 print_info "Building with Cargo..."
-$BUILD_CMD
+eval "$BUILD_CMD"
 
 if [[ -n "$RUST_TARGET" ]]; then
     if [[ "$TARGET" == "release" ]]; then
@@ -135,12 +147,12 @@ fi
 
 if [[ -f "$BUILT_LIB" ]]; then
     cp "$BUILT_LIB" "$OUTPUT_DIR/$LIB_NAME"
-    
+
     # Copy addon files
     cp gurt_godot.gdextension "$ADDON_DIR/"
     cp plugin.cfg "$ADDON_DIR/"
     cp plugin.gd "$ADDON_DIR/"
-    
+
     print_success "Build completed: $OUTPUT_DIR/$LIB_NAME"
     SIZE=$(du -h "$OUTPUT_DIR/$LIB_NAME" | cut -f1)
     print_info "Library size: $SIZE"

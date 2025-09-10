@@ -7,6 +7,8 @@ compatibility_minimum = 4.1
 
 macos.debug = "res://addons/gurt-protocol/bin/macos/libgurt_godot.dylib"
 macos.release = "res://addons/gurt-protocol/bin/macos/libgurt_godot.dylib"
+macos.debug.arm64 = "res://addons/gurt-protocol/bin/macos-arm/libgurt_godot.dylib"
+macos.release.arm64 = "res://addons/gurt-protocol/bin/macos-arm/libgurt_godot.dylib"
 windows.debug.x86_64 = "res://addons/gurt-protocol/bin/windows/gurt_godot.dll"
 windows.release.x86_64 = "res://addons/gurt-protocol/bin/windows/gurt_godot.dll"
 linux.debug.x86_64 = "res://addons/gurt-protocol/bin/linux/libgurt_godot.so"
