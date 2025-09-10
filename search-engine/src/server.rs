@@ -1,6 +1,6 @@
 use anyhow::{Result, Context};
-use gurt::prelude::*;
-use gurt::GurtError;
+use gurtlib::prelude::*;
+use gurtlib::GurtError;
 use serde_json::json;
 use std::sync::Arc;
 use tracing::{info, error};

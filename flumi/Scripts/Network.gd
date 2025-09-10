@@ -142,9 +142,9 @@ func fetch_external_resource(url: String, base_url: String = "") -> String:
 	else:
 		return ""
 
-func fetch_gurt_resource(url: String) -> String:
+func fetch_gurt_resource(url: String, as_binary: bool = false):
 	if not GurtProtocol.is_gurt_domain(url):
-		return ""
+		return PackedByteArray() if as_binary else ""
 	
 	var gurt_url = url
 	if not gurt_url.begins_with("gurt://"):
@@ -184,11 +184,17 @@ func fetch_gurt_resource(url: String) -> String:
 			status_code = response.status_code
 			error_msg += ": " + str(response.status_code) + " " + response.status_message
 		NetworkManager.complete_request(network_request.id, status_code, error_msg, {}, "")
-		return ""
+		return PackedByteArray() if as_binary else ""
 	
 	var response_headers = response.headers if response.headers else {}
-	var response_body = response.body.get_string_from_utf8()
 	
-	NetworkManager.complete_request(network_request.id, response.status_code, "OK", response_headers, response_body)
+	var response_body = response.body
 	
-	return response_body
+	if as_binary:
+		var size_info = "Binary data: " + str(response_body.size()) + " bytes"
+		NetworkManager.complete_request(network_request.id, response.status_code, "OK", response_headers, size_info, response_body)
+		return response_body
+	else:
+		var response_body_str = response_body.get_string_from_utf8()
+		NetworkManager.complete_request(network_request.id, response.status_code, "OK", response_headers, response_body_str)
+		return response_body_str

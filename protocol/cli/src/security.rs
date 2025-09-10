@@ -1,5 +1,5 @@
 use crate::config::GurtConfig;
-use gurt::{prelude::*, GurtMethod, GurtStatusCode};
+use gurtlib::{prelude::*, GurtMethod, GurtStatusCode};
 use std::collections::HashMap;
 use std::net::IpAddr;
 use std::sync::{Arc, Mutex};

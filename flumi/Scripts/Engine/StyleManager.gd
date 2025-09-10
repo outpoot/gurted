@@ -427,15 +427,15 @@ static func apply_styles_to_label(label: Control, styles: Dictionary, element: H
 		var font_family = styles["font-family"]
 		var font_resource = FontManager.get_font(font_family)
 			
-		# set a sans-serif fallback first
 		if font_family not in ["sans-serif", "serif", "monospace"]:
-			if not FontManager.loaded_fonts.has(font_family):
-				# Font not loaded yet, use sans-serif as fallback
+			if FontManager.loaded_fonts.has(font_family) and font_resource:
+				apply_font_to_label(label, font_resource, styles)
+			else:
 				var fallback_font = FontManager.get_font("sans-serif")
 				apply_font_to_label(label, fallback_font, styles)
-			
-		if font_resource:
-			apply_font_to_label(label, font_resource, styles)
+		else:
+			if font_resource:
+				apply_font_to_label(label, font_resource, styles)
 	else:
 		# No custom font family, but check if we need to apply font weight
 		if styles.has("font-thin") or styles.has("font-extralight") or styles.has("font-light") or styles.has("font-normal") or styles.has("font-medium") or styles.has("font-semibold") or styles.has("font-extrabold") or styles.has("font-black"):
@@ -576,50 +576,64 @@ static func parse_radius(radius_str: String) -> int:
 	return SizeUtils.parse_radius(radius_str)
 
 static func apply_font_to_label(label: RichTextLabel, font_resource: Font, styles: Dictionary = {}) -> void:
-	# Create normal font with appropriate weight
-	var normal_font = SystemFont.new()
-	normal_font.font_names = font_resource.font_names if font_resource is SystemFont else ["Arial"]
+	if font_resource is FontFile:
+		label.add_theme_font_override("normal_font", font_resource)
+		label.add_theme_font_override("bold_font", font_resource)
+		label.add_theme_font_override("italics_font", font_resource)
 	
-	# Set weight based on styles
-	var font_weight = 400  # Default normal weight
-	if styles.has("font-thin"):
-		font_weight = 100
-	elif styles.has("font-extralight"):
-		font_weight = 200
-	elif styles.has("font-light"):
-		font_weight = 300
-	elif styles.has("font-normal"):
-		font_weight = 400
-	elif styles.has("font-medium"):
-		font_weight = 500
-	elif styles.has("font-semibold"):
-		font_weight = 600
-	elif styles.has("font-bold"):
-		font_weight = 700
-	elif styles.has("font-extrabold"):
-		font_weight = 800
-	elif styles.has("font-black"):
-		font_weight = 900
+	elif font_resource is SystemFont:
+		var font_weight = 400
+		if styles.has("font-thin"):
+			font_weight = 100
+		elif styles.has("font-extralight"):
+			font_weight = 200
+		elif styles.has("font-light"):
+			font_weight = 300
+		elif styles.has("font-normal"):
+			font_weight = 400
+		elif styles.has("font-medium"):
+			font_weight = 500
+		elif styles.has("font-semibold"):
+			font_weight = 600
+		elif styles.has("font-bold"):
+			font_weight = 700
+		elif styles.has("font-extrabold"):
+			font_weight = 800
+		elif styles.has("font-black"):
+			font_weight = 900
+		
+		var normal_font = SystemFont.new()
+		normal_font.font_names = font_resource.font_names
+		normal_font.font_weight = font_weight
+		label.add_theme_font_override("normal_font", normal_font)
+		
+		# Create bold variant
+		var bold_font = SystemFont.new()
+		bold_font.font_names = font_resource.font_names
+		bold_font.font_weight = 700
+		label.add_theme_font_override("bold_font", bold_font)
+		
+		# Create italic variant
+		var italic_font = SystemFont.new()
+		italic_font.font_names = font_resource.font_names
+		italic_font.font_italic = true
+		italic_font.font_weight = font_weight
+		label.add_theme_font_override("italics_font", italic_font)
+		
+	else:
+		label.add_theme_font_override("normal_font", font_resource)
+		label.add_theme_font_override("bold_font", font_resource)
+		label.add_theme_font_override("italics_font", font_resource)
 	
-	normal_font.font_weight = font_weight
-	
-	label.add_theme_font_override("normal_font", normal_font)
-	
-	var bold_font = SystemFont.new()
-	bold_font.font_names = font_resource.font_names if font_resource is SystemFont else ["Arial"]
-	bold_font.font_weight = 700  # Bold weight
-	label.add_theme_font_override("bold_font", bold_font)
-	
-	var italic_font = SystemFont.new()
-	italic_font.font_names = font_resource.font_names if font_resource is SystemFont else ["Arial"]
-	italic_font.font_italic = true
-	label.add_theme_font_override("italics_font", italic_font)
-	
-	var bold_italic_font = SystemFont.new()
-	bold_italic_font.font_names = font_resource.font_names if font_resource is SystemFont else ["Arial"]
-	bold_italic_font.font_weight = 700  # Bold weight
-	bold_italic_font.font_italic = true
-	label.add_theme_font_override("bold_italics_font", bold_italic_font)
+	# Handle bold_italics_font
+	if font_resource is FontFile:
+		label.add_theme_font_override("bold_italics_font", font_resource)
+	elif font_resource is SystemFont:
+		var bold_italic_font = SystemFont.new()
+		bold_italic_font.font_names = font_resource.font_names
+		bold_italic_font.font_weight = 700
+		bold_italic_font.font_italic = true
+		label.add_theme_font_override("bold_italics_font", bold_italic_font)
 
 static func apply_font_to_button(button: Button, styles: Dictionary) -> void:
 	if styles.has("font-family"):

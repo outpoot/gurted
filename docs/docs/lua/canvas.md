@@ -215,18 +215,15 @@ local shaderCtx = canvas:withContext('shader')
 
 shaderCtx:source([[
     shader_type canvas_item;
-    
-    uniform float time : hint_range(0.0, 10.0) = 1.0;
-    uniform vec2 resolution;
-    
+        
     void fragment() {
         vec2 uv = UV;
         
         // Create animated rainbow effect
         vec3 color = vec3(
-            0.5 + 0.5 * cos(time + uv.x * 6.0),
-            0.5 + 0.5 * cos(time + uv.y * 6.0 + 2.0),
-            0.5 + 0.5 * cos(time + (uv.x + uv.y) * 6.0 + 4.0)
+            0.5 + 0.5 * cos(TIME + uv.x * 6.0),
+            0.5 + 0.5 * cos(TIME + uv.y * 6.0 + 2.0),
+            0.5 + 0.5 * cos(TIME + (uv.x + uv.y) * 6.0 + 4.0)
         );
         
         COLOR = vec4(color, 1.0);

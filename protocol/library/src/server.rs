@@ -577,8 +577,8 @@ mod tests {
         assert!(!route.matches(&GurtMethod::POST, "/test"));
         assert!(!route.matches(&GurtMethod::GET, "/other"));
         
-        assert!(!route.matches(&GurtMethod::GET, "/test?foo=bar"));
-        assert!(!route.matches(&GurtMethod::GET, "/test?page=1&limit=100"));
+        assert!(route.matches(&GurtMethod::GET, "/test?foo=bar"));
+        assert!(route.matches(&GurtMethod::GET, "/test?page=1&limit=100"));
         
         let wildcard_route = Route::get("/api/*");
         assert!(wildcard_route.matches(&GurtMethod::GET, "/api/users"));

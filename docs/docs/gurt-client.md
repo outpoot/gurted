@@ -20,7 +20,7 @@ cargo add gurtlib
 ## Quick Start
 
 ```rust
-use gurt::prelude::*;
+use gurtlib::prelude::*;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -223,7 +223,7 @@ The client extracts:
 ### Error Types
 
 ```rust
-use gurt::GurtError;
+use gurtlib::GurtError;
 
 match client.get("gurt://invalid-url").await {
     Ok(response) => {
@@ -268,7 +268,7 @@ We expect the community to implement bindings for other languages, such as Pytho
 ## Example: Building a GURT API Client
 
 ```rust
-use gurt::prelude::*;
+use gurtlib::prelude::*;
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize)]

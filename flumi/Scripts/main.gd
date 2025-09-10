@@ -810,7 +810,6 @@ func register_font_dependent_element(label: Control, styles: Dictionary, element
 	})
 
 func refresh_fonts(font_name: String) -> void:
-	# Find all elements that should use this font and refresh them
 	for element_info in font_dependent_elements:
 		var label = element_info["label"]
 		var styles = element_info["styles"]

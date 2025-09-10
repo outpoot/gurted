@@ -12,7 +12,7 @@ name = "gurt_godot"
 crate-type = ["cdylib"]
 
 [dependencies]
-gurt = { path = "../library" }
+gurtlib = { path = "../library" }
 
 godot = "0.1"
 

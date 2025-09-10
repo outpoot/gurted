@@ -3,7 +3,7 @@ use crate::{
     config::GurtConfig,
     security::SecurityMiddleware,
 };
-use gurt::prelude::*;
+use gurtlib::prelude::*;
 use std::path::Path;
 use std::sync::Arc;
 use tracing;
@@ -238,14 +238,14 @@ impl RequestHandler {
         }
         
         let result = match method {
-            gurt::message::GurtMethod::GET => {
+            gurtlib::message::GurtMethod::GET => {
                 if ctx.path() == "/" {
                     self.handle_root_request().await
                 } else {
                     self.handle_file_request(ctx.path()).await
                 }
             }
-            gurt::message::GurtMethod::HEAD => {
+            gurtlib::message::GurtMethod::HEAD => {
                 let mut response = if ctx.path() == "/" {
                     self.handle_root_request().await?
                 } else {
@@ -254,7 +254,7 @@ impl RequestHandler {
                 response.body = Vec::new();
                 Ok(response)
             }
-            gurt::message::GurtMethod::OPTIONS => {
+            gurtlib::message::GurtMethod::OPTIONS => {
                 let allowed_methods = if let Some(config) = &self.config {
                     if let Some(security) = &config.security {
                         security.allowed_methods.join(", ")
@@ -272,7 +272,7 @@ impl RequestHandler {
                 Ok(self.apply_global_headers(response))
             }
             _ => {
-                let response = GurtResponse::new(gurt::protocol::GurtStatusCode::MethodNotAllowed)
+                let response = GurtResponse::new(gurtlib::protocol::GurtStatusCode::MethodNotAllowed)
                     .with_header("Content-Type", "text/html");
                 Ok(self.apply_global_headers(response))
             }
@@ -430,7 +430,7 @@ impl RequestHandler {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use gurt::GurtStatusCode;
+    use gurtlib::GurtStatusCode;
     use std::fs;
     use std::env;
 

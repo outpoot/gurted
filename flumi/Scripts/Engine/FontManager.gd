@@ -27,6 +27,10 @@ static func load_font(font_info: Dictionary) -> void:
 	
 	if src.begins_with("http://") or src.begins_with("https://"):
 		load_web_font(font_info)
+	elif src.begins_with("gurt://"):
+		load_gurt_font(font_info)
+	else:
+		load_local_font(font_info)
 
 static func load_web_font(font_info: Dictionary) -> void:
 	var src = font_info["src"]
@@ -48,13 +52,8 @@ static func load_web_font(font_info: Dictionary) -> void:
 				font_info["font_resource"] = font
 				loaded_fonts[name] = font
 				
-				# Trigger font refresh if callback is available
 				if refresh_callback.is_valid():
 					refresh_callback.call(name)
-			else:
-				print("FontManager: Empty font data received for ", name)
-		else:
-			print("FontManager: Failed to load font ", name, " - HTTP ", response_code)
 		
 		if is_instance_valid(temp_parent):
 			temp_parent.queue_free()
@@ -64,6 +63,50 @@ static func load_web_font(font_info: Dictionary) -> void:
 	headers.append("User-Agent: " + UserAgent.get_user_agent())
 	
 	http_request.request(src, headers)
+
+static func load_local_font(font_info: Dictionary) -> void:
+	var src = font_info["src"]
+	var name = font_info["name"]
+	
+	if not FileAccess.file_exists(src):
+		return
+	
+	var file = FileAccess.open(src, FileAccess.READ)
+	if file == null:
+		return
+	
+	var font_data = file.get_buffer(file.get_length())
+	file.close()
+	
+	if font_data.size() == 0:
+		return
+	
+	var font = FontFile.new()
+	font.data = font_data
+	
+	font_info["font_resource"] = font
+	loaded_fonts[name] = font
+	
+	if refresh_callback.is_valid():
+		refresh_callback.call(name)
+
+static func load_gurt_font(font_info: Dictionary) -> void:
+	var src = font_info["src"]
+	var name = font_info["name"]
+	
+	var font_data = Network.fetch_gurt_resource(src, true)
+	
+	if font_data.size() == 0:
+		return
+	
+	var font = FontFile.new()
+	font.data = font_data
+	
+	font_info["font_resource"] = font
+	loaded_fonts[name] = font
+	
+	if refresh_callback.is_valid():
+		refresh_callback.call(name)
 
 static func get_font(family_name: String) -> Font:
 	if family_name == "sans-serif":

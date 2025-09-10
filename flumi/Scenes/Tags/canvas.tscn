@@ -3,7 +3,7 @@
 [ext_resource type="Script" uid="uid://08xpof853sfh" path="res://Scripts/Tags/canvas.gd" id="1_canvas"]
 
 [node name="canvas" type="ColorRect"]
-custom_minimum_size = Vector2(300, 150)
+custom_minimum_size = Vector2(0, 0)
 offset_right = 300.0
 offset_bottom = 150.0
 size_flags_horizontal = 0

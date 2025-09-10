@@ -1,6 +1,6 @@
 use godot::prelude::*;
-use gurt::prelude::*;
-use gurt::{GurtMethod, GurtClientConfig, GurtRequest};
+use gurtlib::prelude::*;
+use gurtlib::{GurtMethod, GurtClientConfig, GurtRequest};
 use tokio::runtime::Runtime;
 use std::sync::Arc;
 use std::cell::RefCell;
@@ -266,12 +266,12 @@ impl GurtProtocolClient {
     
     #[func]
     fn get_version(&self) -> GString {
-        gurt::GURT_VERSION.to_string().into()
+        gurtlib::GURT_VERSION.to_string().into()
     }
     
     #[func]
     fn get_default_port(&self) -> i32 {
-        gurt::DEFAULT_PORT as i32
+        gurtlib::DEFAULT_PORT as i32
     }
     
     #[func]

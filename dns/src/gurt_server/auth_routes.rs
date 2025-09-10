@@ -1,7 +1,7 @@
 use super::{models::*, AppState};
 use crate::auth::*;
-use gurt::prelude::*;
-use gurt::GurtStatusCode;
+use gurtlib::prelude::*;
+use gurtlib::GurtStatusCode;
 use sqlx::Row;
 use chrono::Utc;
 

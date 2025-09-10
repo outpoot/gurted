@@ -2,7 +2,7 @@ use super::{models::*, AppState};
 use crate::auth::Claims;
 use crate::discord_bot::{send_domain_approval_request, DomainRegistration};
 use base64::{engine::general_purpose, Engine as _};
-use gurt::prelude::*;
+use gurtlib::prelude::*;
 use rand::{rngs::OsRng, Rng};
 use sha2::{Digest, Sha256};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -1056,7 +1056,7 @@ pub(crate) async fn get_certificate(
     .map_err(|_| GurtError::invalid_message("Database error"))?;
 
     if txt_records.is_empty() {
-        return Ok(GurtResponse::new(gurt::GurtStatusCode::Accepted)
+        return Ok(GurtResponse::new(gurtlib::GurtStatusCode::Accepted)
             .with_string_body("Challenge not completed yet"));
     }
 
@@ -1072,6 +1072,7 @@ pub(crate) async fn get_certificate(
         &ca_cert.ca_cert_pem,
         &ca_cert.ca_key_pem,
         &domain,
+        Some(&ctx.client_ip().to_string()),
     )
     .map_err(|e| {
         log::error!("Failed to sign certificate: {}", e);

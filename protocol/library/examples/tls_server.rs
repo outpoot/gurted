@@ -1,4 +1,4 @@
-use gurt::{GurtServer, GurtResponse, ServerContext, Result};
+use gurtlib::{GurtServer, GurtResponse, ServerContext, Result};
 
 #[tokio::main]
 async fn main() -> Result<()> {

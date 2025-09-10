@@ -52,21 +52,21 @@ static func clear_messages() -> void:
 	_messages.clear()
 
 static func _lua_trace_log_handler(vm: LuauVM) -> int:
-	var message = vm.luaL_checkstring(1)
+	var message = LuaPrintUtils.lua_value_to_string(vm, 1)
 	vm.lua_getglobal("_trace_log")
 	vm.lua_pushstring(message)
 	vm.lua_call(1, 0)
 	return 0
 
 static func _lua_trace_warn_handler(vm: LuauVM) -> int:
-	var message = vm.luaL_checkstring(1)
+	var message = LuaPrintUtils.lua_value_to_string(vm, 1)
 	vm.lua_getglobal("_trace_warning")
 	vm.lua_pushstring(message)
 	vm.lua_call(1, 0)
 	return 0
 
 static func _lua_trace_error_handler(vm: LuauVM) -> int:
-	var message = vm.luaL_checkstring(1)
+	var message = LuaPrintUtils.lua_value_to_string(vm, 1)
 	vm.lua_getglobal("_trace_error")
 	vm.lua_pushstring(message)
 	vm.lua_call(1, 0)

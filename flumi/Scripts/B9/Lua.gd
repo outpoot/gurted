@@ -359,7 +359,8 @@ func _on_gui_input_click(event: InputEvent, subscription: EventSubscription) -> 
 	if event is InputEventMouseButton:
 		var mouse_event = event as InputEventMouseButton
 		if mouse_event.button_index == MOUSE_BUTTON_LEFT and mouse_event.pressed:
-			_execute_lua_callback(subscription)
+			var mouse_info = _get_element_relative_mouse_position(mouse_event, subscription.element_id)
+			_execute_lua_callback(subscription, [mouse_info])
 
 func _on_gui_input_mouse_universal(event: InputEvent, signal_node: Node) -> void:
 	if event is InputEventMouseButton:
@@ -376,7 +377,8 @@ func _on_gui_input_mouse_universal(event: InputEvent, signal_node: Node) -> void
 						should_trigger = true
 					
 					if should_trigger:
-						_execute_lua_callback(subscription)
+						var mouse_info = _get_element_relative_mouse_position(mouse_event, subscription.element_id)
+						_execute_lua_callback(subscription, [mouse_info])
 
 # Event callback handlers
 func _on_gui_input_mousemove(event: InputEvent, subscription: EventSubscription) -> void:
@@ -441,6 +443,31 @@ func _input(event: InputEvent) -> void:
 					}
 					_execute_lua_callback(subscription, [key_info])
 	
+	elif event is InputEventMouseButton:
+		var mouse_event = event as InputEventMouseButton
+		for subscription_id in event_subscriptions:
+			var subscription = event_subscriptions[subscription_id]
+			if subscription.element_id == "body" and subscription.connected_signal == "input":
+				var should_trigger = false
+				match subscription.event_name:
+					"mousedown":
+						should_trigger = mouse_event.pressed
+					"mouseup":
+						should_trigger = not mouse_event.pressed
+				
+				if should_trigger:
+					var mouse_info = {"x": 0, "y": 0, "button": mouse_event.button_index}
+					var body_container = _get_body_container()
+					
+					if body_container:
+						var control = body_container as Control
+						var global_pos = mouse_event.global_position
+						var element_rect = control.get_global_rect()
+						mouse_info["x"] = global_pos.x - element_rect.position.x
+						mouse_info["y"] = global_pos.y - element_rect.position.y
+					
+					_execute_lua_callback(subscription, [mouse_info])
+	
 	elif event is InputEventMouseMotion:
 		var mouse_event = event as InputEventMouseMotion
 		for subscription_id in event_subscriptions:
@@ -449,29 +476,67 @@ func _input(event: InputEvent) -> void:
 				if subscription.event_name == "mousemove":
 					_handle_mousemove_event(mouse_event, subscription)
 
-func _handle_mousemove_event(mouse_event: InputEventMouseMotion, subscription: EventSubscription) -> void:
-	# TODO: pass reference instead of hardcoded path
-	var body_container = Engine.get_main_loop().current_scene.website_container
-
-	if body_container.get_parent() is MarginContainer:
-		body_container = body_container.get_parent()
+func _get_element_relative_mouse_position(mouse_event: InputEvent, element_id: String) -> Dictionary:
+	var dom_node = dom_parser.parse_result.dom_nodes.get(element_id, null)
+	if not dom_node or not dom_node is Control:
+		return {"x": 0, "y": 0}
 	
+	var control = dom_node as Control
+	var global_pos: Vector2
+	
+	if mouse_event is InputEventMouseButton:
+		global_pos = (mouse_event as InputEventMouseButton).global_position
+	elif mouse_event is InputEventMouseMotion:
+		global_pos = (mouse_event as InputEventMouseMotion).global_position
+	else:
+		return {"x": 0, "y": 0}
+	
+	var element_rect = control.get_global_rect()
+	var local_x = global_pos.x - element_rect.position.x
+	var local_y = global_pos.y - element_rect.position.y
+	
+	return {
+		"x": local_x,
+		"y": local_y
+	}
+
+func _handle_mousemove_event(mouse_event: InputEventMouseMotion, subscription: EventSubscription) -> void:
+	var body_container = _get_body_container()
 	if not body_container:
 		return
 	
-	var container_rect = body_container.get_global_rect()
-	var local_x = mouse_event.global_position.x - container_rect.position.x
-	var local_y = mouse_event.global_position.y - container_rect.position.y
+	var control = body_container as Control
+	var global_pos = mouse_event.global_position
+	var element_rect = control.get_global_rect()
+	var local_x = global_pos.x - element_rect.position.x
+	var local_y = global_pos.y - element_rect.position.y
 	
-	# Only provide coordinates if mouse is within the container bounds
-	if local_x >= 0 and local_y >= 0 and local_x <= container_rect.size.x and local_y <= container_rect.size.y:
-		var mouse_info = {
-			"x": local_x,
-			"y": local_y,
-			"deltaX": mouse_event.relative.x,
-			"deltaY": mouse_event.relative.y
-		}
-		_execute_lua_callback(subscription, [mouse_info])
+	var mouse_info = {
+		"x": local_x,
+		"y": local_y,
+		"deltaX": mouse_event.relative.x,
+		"deltaY": mouse_event.relative.y
+	}
+	_execute_lua_callback(subscription, [mouse_info])
+
+func _get_body_container() -> Control:
+	# Try to get body from DOM registry first
+	var body_container = dom_parser.parse_result.dom_nodes.get("body", null)
+	
+	# We fallback to finding the active website container, as it seems theres a bug where body can be null in this context
+	if not body_container:
+		var main_scene = Engine.get_main_loop().current_scene
+		if main_scene and main_scene.has_method("get_active_website_container"):
+			body_container = main_scene.get_active_website_container()
+		else:
+			body_container = Engine.get_main_loop().current_scene.website_container
+			if body_container and body_container.get_parent() is MarginContainer:
+				body_container = body_container.get_parent()
+	
+	if body_container and body_container is Control:
+		return body_container as Control
+	
+	return null
 
 # Input event handlers
 func _on_input_text_changed(new_text: String, subscription: EventSubscription) -> void:
@@ -634,13 +699,13 @@ func get_dom_node(node: Node, purpose: String = "general") -> Node:
 	return node
 
 # Main execution function
-func execute_lua_script(code: String):
+func execute_lua_script(code: String, chunk_name: String = "dostring"):
 	if not threaded_vm.lua_thread or not threaded_vm.lua_thread.is_alive():
 		# Start the thread if it's not running
 		threaded_vm.start_lua_thread(dom_parser, self)
 	
 	script_start_time = Time.get_ticks_msec() / 1000.0
-	threaded_vm.execute_script_async(code)
+	threaded_vm.execute_script_async(code, chunk_name)
 
 func _on_threaded_script_completed(_result: Dictionary):
 	pass
@@ -649,7 +714,14 @@ func _on_threaded_script_error(error_message: String):
 	Trace.trace_error("RuntimeError: " + error_message)
 
 func _on_print_output(message: Dictionary):
-	Trace.get_instance().log_message.emit(message, "lua", Time.get_ticks_msec() / 1000.0)
+	var message_strings: Array[String] = []
+	for part in message.parts:
+		if part.type == "table":
+			message_strings.append(str(part.data))
+		else:
+			message_strings.append(part.data)
+	var formatted_message = "\t".join(message_strings)
+	Trace.get_instance().log_message.emit(formatted_message, "lua", Time.get_ticks_msec() / 1000.0)
 
 func kill_script_execution():
 	threaded_vm.stop_lua_thread()
@@ -1003,3 +1075,31 @@ func _handle_download_request(operation: Dictionary):
 	
 	var main_node = Engine.get_main_loop().current_scene
 	main_node.download_manager.handle_download_request(download_data)
+
+func _get_element_size_sync(result: Array, element_id: String):
+	var dom_node = dom_parser.parse_result.dom_nodes.get(element_id, null)
+	if dom_node and dom_node is Control:
+		var control = dom_node as Control
+		result[0] = control.size.x
+		result[1] = control.size.y
+		result[2] = true # completion flag
+		return
+	
+	# Fallback
+	result[0] = 0.0
+	result[1] = 0.0
+	result[2] = true # completion flag
+
+func _get_element_position_sync(result: Array, element_id: String):
+	var dom_node = dom_parser.parse_result.dom_nodes.get(element_id, null)
+	if dom_node and dom_node is Control:
+		var control = dom_node as Control
+		result[0] = control.position.x
+		result[1] = control.position.y
+		result[2] = true # completion flag
+		return
+	
+	# Fallback
+	result[0] = 0.0
+	result[1] = 0.0
+	result[2] = true # completion flag

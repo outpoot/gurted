@@ -22,7 +22,7 @@
 	} from 'lucide-svelte';
 	import Navbar from '$lib/components/Navbar.svelte';
 
-    const version = '1.0.0';
+    const version = '1.0.1';
 </script>
 
 <svelte:head>
@@ -100,7 +100,7 @@
 						<CardDescription>Ubuntu 20.04+ / Fedora 35+</CardDescription>
 					</CardHeader>
 					<CardContent class="space-y-4">
-						<Button class="w-full" size="lg" onclick={() => alert('oh my god bruh')}>
+						<Button class="w-full" size="lg"  href="https://github.com/outpoot/gurted/releases/download/v{version}/Flumi_Linux.tar.gz" target="_blank" rel="noopener noreferrer">
 							<Download class="h-4 w-4 " />
 							Download
 						</Button>

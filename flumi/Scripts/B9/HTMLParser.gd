@@ -451,7 +451,7 @@ func process_scripts(lua_api: LuaAPI, _lua_vm) -> void:
 				parse_result.external_scripts = []
 			parse_result.external_scripts.append(src)
 		elif not inline_code.is_empty():
-			lua_api.execute_lua_script(inline_code)
+			lua_api.execute_lua_script(inline_code, "<inline script>")
 
 func process_external_scripts(lua_api: LuaAPI, _lua_vm, base_url: String = "") -> void:
 	if not lua_api or not parse_result.external_scripts or parse_result.external_scripts.is_empty():
@@ -462,7 +462,7 @@ func process_external_scripts(lua_api: LuaAPI, _lua_vm, base_url: String = "") -
 	for script_url in parse_result.external_scripts:
 		var script_content = await Network.fetch_external_resource(script_url, base_url)
 		if not script_content.is_empty():
-			lua_api.execute_lua_script(script_content)
+			lua_api.execute_lua_script(script_content, script_url)
 
 func process_postprocess() -> HTMLParser.HTMLElement:
 	var postprocess_elements = find_all("postprocess")

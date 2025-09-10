@@ -12,7 +12,7 @@ Add the GURT library to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-gurt = "0.1"
+gurtlib = "0.1"
 tokio = { version = "1.0", features = ["full"] }
 tracing = "0.1"
 tracing-subscriber = "0.3"
@@ -22,7 +22,7 @@ serde_json = "1.0"
 ## Quick Start
 
 ```rust
-use gurt::prelude::*;
+use gurtlib::prelude::*;
 use serde_json::json;
 
 #[tokio::main]
@@ -442,7 +442,7 @@ server.listen("[::1]:4878").await?;
 #[cfg(test)]
 mod tests {
     use super::*;
-    use gurt::GurtClient;
+    use gurtlib::GurtClient;
     
     #[tokio::test]
     async fn test_server() {

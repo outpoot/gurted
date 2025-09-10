@@ -1,4 +1,4 @@
-use gurt::prelude::*;
+use gurtlib::prelude::*;
 use jsonwebtoken::{decode, encode, DecodingKey, EncodingKey, Header, Validation, Algorithm};
 use serde::{Deserialize, Serialize};
 use bcrypt::{hash, verify, DEFAULT_COST};

@@ -1054,6 +1054,60 @@ static func _element_index_wrapper(vm: LuauVM) -> int:
 			# Fallback to true (visible by default)
 			vm.lua_pushboolean(true)
 			return 1
+		"size":
+			if lua_api:
+				vm.lua_getfield(1, "_element_id")
+				var element_id: String = vm.lua_tostring(-1)
+				vm.lua_pop(1)
+				
+				var dom_node = lua_api.dom_parser.parse_result.dom_nodes.get(element_id, null)
+				if dom_node and dom_node is Control:
+					var result = [0.0, 0.0, false]
+					lua_api.call_deferred("_get_element_size_sync", result, element_id)
+					while not result[2]: # wait for completion flag
+						OS.delay_msec(1)
+					
+					vm.lua_newtable()
+					vm.lua_pushnumber(result[0])
+					vm.lua_setfield(-2, "width")
+					vm.lua_pushnumber(result[1])
+					vm.lua_setfield(-2, "height")
+					return 1
+			
+			# Fallback to zero size
+			vm.lua_newtable()
+			vm.lua_pushnumber(0)
+			vm.lua_setfield(-2, "width")
+			vm.lua_pushnumber(0)
+			vm.lua_setfield(-2, "height")
+			return 1
+		"position":
+			if lua_api:
+				vm.lua_getfield(1, "_element_id")
+				var element_id: String = vm.lua_tostring(-1)
+				vm.lua_pop(1)
+				
+				var dom_node = lua_api.dom_parser.parse_result.dom_nodes.get(element_id, null)
+				if dom_node and dom_node is Control:
+					var result = [0.0, 0.0, false]
+					lua_api.call_deferred("_get_element_position_sync", result, element_id)
+					while not result[2]: # wait for completion flag
+						OS.delay_msec(1)
+					
+					vm.lua_newtable()
+					vm.lua_pushnumber(result[0])
+					vm.lua_setfield(-2, "x")
+					vm.lua_pushnumber(result[1])
+					vm.lua_setfield(-2, "y")
+					return 1
+			
+			# Fallback to zero position
+			vm.lua_newtable()
+			vm.lua_pushnumber(0)
+			vm.lua_setfield(-2, "x")
+			vm.lua_pushnumber(0)
+			vm.lua_setfield(-2, "y")
+			return 1
 		_:
 			# Check for DOM traversal properties first
 			if lua_api:

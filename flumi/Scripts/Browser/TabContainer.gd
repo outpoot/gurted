@@ -249,6 +249,8 @@ func _input(_event: InputEvent) -> void:
 	if Input.is_action_just_pressed("FocusSearch"):
 		main.search_bar.grab_focus()
 		main.search_bar.select_all()
+	if Input.is_action_just_pressed("ReloadPage"):
+		main.reload_current_page()
 
 func _on_new_tab_button_pressed() -> void:
 	create_tab()

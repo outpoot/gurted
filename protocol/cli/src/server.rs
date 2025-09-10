@@ -3,7 +3,7 @@ use crate::{
     handlers::{FileHandler, DirectoryHandler, DefaultFileHandler, DefaultDirectoryHandler},
     request_handler::{RequestHandler, RequestHandlerBuilder},
 };
-use gurt::prelude::*;
+use gurtlib::prelude::*;
 use std::{path::PathBuf, sync::Arc};
 
 pub struct FileServerBuilder {

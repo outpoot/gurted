@@ -213,7 +213,6 @@ size_flags_horizontal = 3
 theme_override_constants/separation = 0
 
 [node name="ShortcutsPanel" type="VBoxContainer" parent="HSplitContainer/Content/ScrollContainer/ContentStack"]
-visible = false
 layout_mode = 2
 theme_override_constants/separation = 20
 
@@ -303,6 +302,18 @@ layout_mode = 2
 theme = ExtResource("2_theme")
 theme_override_colors/font_color = Color(0.7, 0.7, 0.7, 1)
 text = "Focus address bar"
+
+[node name="Label6" type="Label" parent="HSplitContainer/Content/ScrollContainer/ContentStack/ShortcutsPanel/NavigationSection/VBoxContainer/GridContainer"]
+layout_mode = 2
+theme = ExtResource("2_theme")
+theme_override_colors/font_color = Color(0.8, 0.8, 0.8, 1)
+text = "Ctrl+R"
+
+[node name="Description6" type="Label" parent="HSplitContainer/Content/ScrollContainer/ContentStack/ShortcutsPanel/NavigationSection/VBoxContainer/GridContainer"]
+layout_mode = 2
+theme = ExtResource("2_theme")
+theme_override_colors/font_color = Color(0.7, 0.7, 0.7, 1)
+text = "Refresh tab"
 
 [node name="WindowSection" type="PanelContainer" parent="HSplitContainer/Content/ScrollContainer/ContentStack/ShortcutsPanel"]
 layout_mode = 2
@@ -461,6 +472,7 @@ text = "GURT is a content delivery protocol similar to HTTPS. It's the core of h
 autowrap_mode = 3
 
 [node name="ScriptingPanel" type="VBoxContainer" parent="HSplitContainer/Content/ScrollContainer/ContentStack"]
+visible = false
 layout_mode = 2
 theme_override_constants/separation = 20
 

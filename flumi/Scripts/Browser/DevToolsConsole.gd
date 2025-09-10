@@ -245,9 +245,9 @@ func execute_lua_command(code: String) -> void:
 				var is_expression = is_likely_expression(code)
 				if is_expression:
 					var wrapped_code = "print(" + code + ")"
-					lua_api.execute_lua_script(wrapped_code)
+					lua_api.execute_lua_script(wrapped_code, "<console>")
 				else:
-					lua_api.execute_lua_script(code)
+					lua_api.execute_lua_script(code, "<console>")
 				return
 	
 	add_log_entry("No Lua context available", "error", Time.get_ticks_msec() / 1000.0)

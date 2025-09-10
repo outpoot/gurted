@@ -29,8 +29,8 @@ impl From<std::io::Error> for ServerError {
     }
 }
 
-impl From<gurt::GurtError> for ServerError {
-    fn from(err: gurt::GurtError) -> Self {
+impl From<gurtlib::GurtError> for ServerError {
+    fn from(err: gurtlib::GurtError) -> Self {
         ServerError::ServerStartup(err.to_string())
     }
 }

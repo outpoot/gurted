@@ -1,6 +1,6 @@
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
-use gurt::prelude::*;
+use gurtlib::prelude::*;
 
 pub struct GurtCAClient {
     ca_url: String,
@@ -67,9 +67,9 @@ impl GurtCAClient {
                                     println!("✅ Fetched CA certificate via HTTP bootstrap");
                                     
                                     // Create new client with custom CA
-                                    let mut config = gurt::client::GurtClientConfig::default();
+                                    let mut config = gurtlib::client::GurtClientConfig::default();
                                     config.custom_ca_certificates = vec![ca_cert];
-                                    let gurt_client = gurt::GurtClient::with_config(config);
+                                    let gurt_client = gurtlib::GurtClient::with_config(config);
                                     let client_with_ca = Self {
                                         ca_url,
                                         gurt_client,

@@ -8,9 +8,9 @@ use crate::{auth::jwt_middleware_gurt, config::Config, discord_bot};
 use colored::Colorize;
 use macros_rs::fmt::{crashln, string};
 use std::{sync::Arc, collections::HashMap};
-use gurt::prelude::*;
+use gurtlib::prelude::*;
 use warp::Filter;
-use gurt::{GurtStatusCode, Route};
+use gurtlib::{GurtStatusCode, Route};
 
 #[derive(Debug)]
 struct CertificateError;

@@ -17,7 +17,7 @@ static func connect_element_event(signal_node: Node, event_name: String, subscri
 				var wrapper = func(): 
 					LuaAudioUtils.mark_user_event()
 					LuaDownloadUtils.mark_user_event()
-					subscription.lua_api._on_event_triggered(subscription)
+					subscription.lua_api._execute_lua_callback(subscription, [{}])
 				signal_node.pressed.connect(wrapper)
 				subscription.connected_signal = "pressed"
 				subscription.connected_node = signal_node if signal_node != subscription.lua_api.get_dom_node(signal_node.get_parent(), "signal") else null
@@ -187,6 +187,11 @@ static func connect_body_event(event_name: String, subscription, lua_api) -> boo
 		"mousemove":
 			lua_api.set_process_input(true)
 			subscription.connected_signal = "input_mousemove"
+			subscription.connected_node = lua_api
+			return true
+		"mousedown", "mouseup":
+			lua_api.set_process_input(true)
+			subscription.connected_signal = "input"
 			subscription.connected_node = lua_api
 			return true
 		"mouseenter", "mouseexit":

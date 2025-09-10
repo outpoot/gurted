@@ -1,6 +1,6 @@
 use anyhow::{Result, Context};
 use chrono::Utc;
-use gurt::{GurtClient, GurtClientConfig};
+use gurtlib::{GurtClient, GurtClientConfig};
 use scraper::{Html, Selector};
 use std::collections::{HashSet, VecDeque};
 use std::sync::Arc;

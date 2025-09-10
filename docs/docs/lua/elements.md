@@ -55,6 +55,39 @@ for i = 1, #children do
 end
 ```
 
+### element.size
+
+Gets the size of an element in pixels.
+
+```lua
+local box = gurt.select('#my-box')
+local size = box.size
+
+trace.log('Width: ' .. size.width .. 'px')
+trace.log('Height: ' .. size.height .. 'px')
+
+if size.width == size.height then
+    trace.log('Element is square')
+end
+```
+
+### element.position
+
+Gets the position of an element relative to its parent.
+
+```lua
+local element = gurt.select('#positioned-element')
+local pos = element.position
+
+trace.log('X position: ' .. pos.x .. 'px')
+trace.log('Y position: ' .. pos.y .. 'px')
+
+-- Check if element is at origin
+if pos.x == 0 and pos.y == 0 then
+    trace.log('Element is at origin')
+end
+```
+
 ## DOM Traversal
 
 ### element.parent
@@ -96,11 +129,19 @@ Adds an event listener. Returns a subscription object.
 local button = gurt.select('#my-button')
 
 -- Click event
-local subscription = button:on('click', function()
-    trace.log('Button clicked!')
+local subscription = button:on('click', function(event)
+    trace.log('Button clicked at: ' .. event.x .. ', ' .. event.y)
 end)
 
 -- Mouse events
+button:on('mousedown', function(event)
+    trace.log('Mouse down at: ' .. event.x .. ', ' .. event.y)
+end)
+
+button:on('mouseup', function(event)
+    trace.log('Mouse up at: ' .. event.x .. ', ' .. event.y)
+end)
+
 button:on('mouseenter', function()
     button.classList:add('hover-effect')
 end)
@@ -126,6 +167,30 @@ end)
 
 -- Unsubscribe from event
 subscription:unsubscribe()
+```
+
+#### Mouse Event Positioning
+
+Mouse events (`click`, `mousedown`, `mouseup`) provide position information relative to the element:
+
+```lua
+local element = gurt.select('#interactive-element')
+
+element:on('click', function(event)
+    -- event.x and event.y are relative to the element's top-left corner
+    local elementX = event.x
+    local elementY = event.y
+    
+    trace.log('Clicked at (' .. elementX .. ', ' .. elementY .. ') within element')
+    
+    local size = element.size
+    local pos = element.position
+    
+    local xPercent = (elementX / size.width) * 100
+    local yPercent = (elementY / size.height) * 100
+    
+    trace.log('Clicked at ' .. xPercent .. '% horizontally, ' .. yPercent .. '% vertically')
+end)
 ```
 
 ### element:append(childElement)

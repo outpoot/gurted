@@ -136,7 +136,7 @@ func _exit_tree():
 	
 	if background_panel and is_instance_valid(background_panel):
 		if background_panel.get_parent():
-			background_panel.get_parent().remove_child(background_panel)
+			background_panel.get_parent().remove_child.call_deferred(background_panel)
 		background_panel.queue_free()
 	
 	if dev_tools and is_instance_valid(dev_tools):

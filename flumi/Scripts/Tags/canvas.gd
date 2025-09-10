@@ -8,6 +8,8 @@ var canvas_height: int = 150
 var draw_commands: Array = []
 var context_2d: CanvasContext2D = null
 var context_shader: CanvasContextShader = null
+var pending_redraw: bool = false
+var max_draw_commands: int = 1000
 
 class CanvasContext2D:
 	var canvas: HTMLCanvas
@@ -41,8 +43,7 @@ class CanvasContext2D:
 			"color": color,
 			"transform": current_transform
 		}
-		canvas.draw_commands.append(cmd)
-		canvas.queue_redraw()
+		canvas._add_draw_command(cmd)
 	
 	func strokeRect(x: float, y: float, width: float, height: float, color_hex: String = "", stroke_width: float = 0.0):
 		var color = _parse_color(stroke_style if color_hex.is_empty() else color_hex)
@@ -57,10 +58,14 @@ class CanvasContext2D:
 			"stroke_width": width_val,
 			"transform": current_transform
 		}
-		canvas.draw_commands.append(cmd)
-		canvas.queue_redraw()
+		canvas._add_draw_command(cmd)
 	
 	func clearRect(x: float, y: float, width: float, height: float):
+		if x == 0 and y == 0 and width >= canvas.canvas_width and height >= canvas.canvas_height:
+			canvas.draw_commands.clear()
+			canvas._do_redraw()
+			return
+		
 		var cmd = {
 			"type": "clearRect",
 			"x": x,
@@ -68,8 +73,7 @@ class CanvasContext2D:
 			"width": width,
 			"height": height
 		}
-		canvas.draw_commands.append(cmd)
-		canvas.queue_redraw()
+		canvas._add_draw_command(cmd)
 	
 	func drawCircle(x: float, y: float, radius: float, color_hex: String = "#000000", filled: bool = true):
 		var cmd = {
@@ -81,8 +85,7 @@ class CanvasContext2D:
 			"filled": filled,
 			"transform": current_transform
 		}
-		canvas.draw_commands.append(cmd)
-		canvas.queue_redraw()
+		canvas._add_draw_command(cmd)
 	
 	func drawText(x: float, y: float, text: String, color_hex: String = "#000000"):
 		var color = _parse_color(fill_style if color_hex == "#000000" else color_hex)
@@ -95,8 +98,7 @@ class CanvasContext2D:
 			"font_size": _parse_font_size(font),
 			"transform": current_transform
 		}
-		canvas.draw_commands.append(cmd)
-		canvas.queue_redraw()
+		canvas._add_draw_command(cmd)
 	
 	# Path-based drawing functions
 	func beginPath():
@@ -149,8 +151,7 @@ class CanvasContext2D:
 			"line_cap": line_cap,
 			"line_join": line_join
 		}
-		canvas.draw_commands.append(cmd)
-		canvas.queue_redraw()
+		canvas._add_draw_command(cmd)
 	
 	func fill():
 		if current_path.size() < 3:
@@ -161,8 +162,7 @@ class CanvasContext2D:
 			"path": current_path.duplicate(),
 			"color": _parse_color(fill_style)
 		}
-		canvas.draw_commands.append(cmd)
-		canvas.queue_redraw()
+		canvas._add_draw_command(cmd)
 	
 	# Transformation functions
 	func save():
@@ -328,6 +328,10 @@ func withContext(context_type: String):
 func _draw():
 	draw_rect(Rect2(Vector2.ZERO, size), Color.TRANSPARENT)
 	
+	# Skip if too many commands to prevent frame drops
+	if draw_commands.size() > max_draw_commands * 2:
+		return
+	
 	for cmd in draw_commands:
 		match cmd.type:
 			"fillRect":
@@ -407,6 +411,31 @@ func _draw():
 				if path.size() > 2:
 					draw_colored_polygon(path, clr)
 
+func _add_draw_command(cmd: Dictionary):
+	_optimize_command(cmd)
+	
+	draw_commands.append(cmd)
+	
+	if draw_commands.size() > max_draw_commands:
+		draw_commands = draw_commands.slice(draw_commands.size() - max_draw_commands)
+	
+	if not pending_redraw:
+		pending_redraw = true
+		call_deferred("_do_redraw")
+
+func _optimize_command(cmd: Dictionary):
+	# Remove redundant consecutive clearRect commands
+	if cmd.type == "clearRect" and draw_commands.size() > 0:
+		var last_cmd = draw_commands[-1]
+		if last_cmd.type == "clearRect" and \
+		   last_cmd.x == cmd.x and last_cmd.y == cmd.y and \
+		   last_cmd.width == cmd.width and last_cmd.height == cmd.height:
+			draw_commands.pop_back()
+
+func _do_redraw():
+	pending_redraw = false
+	queue_redraw()
+
 func clear():
 	draw_commands.clear()
-	queue_redraw()
+	_do_redraw()
