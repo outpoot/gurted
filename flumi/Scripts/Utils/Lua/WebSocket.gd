@@ -23,6 +23,8 @@ class WebSocketWrapper:
 		if connection_status:
 			return
 		
+		NetworkManager.call_deferred("start_websocket_connection", url, instance_id)
+		
 		var error = websocket.connect_to_url(url)
 		
 		if error == OK:
@@ -42,8 +44,10 @@ class WebSocketWrapper:
 				timer.call_deferred("start")
 			else:
 				trigger_event("error", {"message": "No scene available for WebSocket timer"})
+				NetworkManager.call_deferred("update_websocket_connection", instance_id, "error", 0, "No scene available")
 		else:
 			trigger_event("error", {"message": "Failed to connect to " + url + " (error: " + str(error) + ")"})
+			NetworkManager.call_deferred("update_websocket_connection", instance_id, "error", 0, "Connection failed: " + str(error))
 	
 	func _poll_websocket():
 		if not websocket:
@@ -57,17 +61,25 @@ class WebSocketWrapper:
 				if not connection_status:
 					connection_status = true
 					trigger_event("open", {})
+					# Update NetworkManager with successful connection
+					NetworkManager.call_deferred("update_websocket_connection", instance_id, "open", 200, "Connected")
 				
 				# Check for messages
 				while websocket.get_available_packet_count() > 0:
 					var packet = websocket.get_packet()
 					var message = packet.get_string_from_utf8()
 					trigger_event("message", {"data": message})
+					# Track received message in NetworkManager
+					NetworkManager.call_deferred("add_websocket_message", url, instance_id, "received", message)
 			
 			WebSocketPeer.STATE_CLOSED:
 				if connection_status:
 					connection_status = false
 					trigger_event("close", {})
+					# Update NetworkManager with closed connection
+					var close_code = websocket.get_close_code()
+					var close_reason = websocket.get_close_reason()
+					NetworkManager.call_deferred("update_websocket_connection", instance_id, "closed", close_code, close_reason)
 				
 				# Clean up timer
 				if timer:
@@ -82,24 +94,32 @@ class WebSocketWrapper:
 				# Connection is closing
 				if connection_status:
 					connection_status = false
+					NetworkManager.call_deferred("update_websocket_connection", instance_id, "closing", 0, "Closing")
 			
 			_:
 				# Unknown state or connection failed
 				if connection_status:
 					connection_status = false
 					trigger_event("close", {})
+					NetworkManager.call_deferred("update_websocket_connection", instance_id, "closed", 0, "Unexpected disconnection")
 				elif not connection_status:
 					# This might be a connection failure
 					trigger_event("error", {"message": "Connection failed or was rejected by server"})
+					NetworkManager.call_deferred("update_websocket_connection", instance_id, "error", 0, "Connection failed or rejected")
 	
 	func send_message(message: String):
 		if connection_status and websocket:
 			websocket.send_text(message)
+			# Track sent message in NetworkManager
+			NetworkManager.call_deferred("add_websocket_message", url, instance_id, "sent", message)
 	
 	func close_connection():
 		if websocket:
 			websocket.close()
 		connection_status = false
+		
+		# Update NetworkManager with manual close
+		NetworkManager.call_deferred("update_websocket_connection", instance_id, "closed", 1000, "Manually closed")
 		
 		if timer:
 			timer.queue_free()

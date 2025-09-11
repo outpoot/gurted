@@ -489,6 +489,11 @@ visible = false
 layout_mode = 2
 metadata/_tab_index = 2
 
+[node name="Messages" type="VBoxContainer" parent="DevTools/TabContainer/Network/MainContainer/RightPanel/PanelContainer/HBoxContainer/TabContainer"]
+visible = false
+layout_mode = 2
+metadata/_tab_index = 3
+
 [node name="Application" type="Label" parent="DevTools/TabContainer"]
 visible = false
 layout_mode = 2
