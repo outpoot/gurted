@@ -60,6 +60,22 @@ func _process(_delta):
 		else:
 			close_button.add_theme_stylebox_override("normal", CLOSE_BUTTON_NORMAL)
 
+func _input(event):
+	# make sure we are hovering over the tab
+	if mouse_over_tab and event.is_action_pressed("CloseTabMouse"):
+		var close_tween = create_tween()
+		close_tween.set_ease(Tween.EASE_IN)
+		close_tween.set_trans(Tween.TRANS_CUBIC)
+		
+		close_tween.parallel().tween_property(self, "custom_minimum_size:x", 0.0, 0.15)
+		close_tween.parallel().tween_property(self, "size:x", 0.0, 0.15)
+		close_tween.parallel().tween_property(button, "custom_minimum_size:x", 0.0, 0.15)
+		close_tween.parallel().tween_property(button, "size:x", 0.0, 0.15)
+		
+		await close_tween.finished
+		tab_closed.emit()
+		queue_free()
+
 func set_title(title: String) -> void:
 	button.text = title
 	button.set_meta("original_text", title)
