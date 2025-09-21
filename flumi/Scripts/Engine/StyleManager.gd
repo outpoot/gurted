@@ -4,61 +4,35 @@ extends RefCounted
 static var body_text_color: Color = Color.BLACK
 
 static func parse_size(val):
-	print("DEBUG: StyleManager.parse_size() - Parsing value: ", val)
-
 	# Add comprehensive null and type checks
 	if val == null:
-		print("ERROR: StyleManager.parse_size() - Input value is null")
 		return null
 
 	if typeof(val) == TYPE_INT or typeof(val) == TYPE_FLOAT:
-		print("DEBUG: StyleManager.parse_size() - Returning numeric value: ", val)
 		return float(val)
 
-	# Convert to string for string operations
-	var val_str = str(val)
+	# Convert to string and clean whitespace
+	var val_str = str(val).strip_edges()
 	if val_str.is_empty():
-		print("ERROR: StyleManager.parse_size() - Value string is empty")
 		return null
 
-		# Handle bracketed values like [5px], [2rem], [50%]
+	# Handle bracketed values like [5px], [2rem], [50%]
 	if val_str.begins_with("[") and val_str.ends_with("]"):
-		var clean_val = val_str.replace("[", "").replace("]", "")
-		if clean_val.ends_with("px"):
-			var result = float(clean_val.replace("px", ""))
-			print("DEBUG: StyleManager.parse_size() - Parsed bracketed px: ", val_str, " -> ", result)
-			return result
-		elif clean_val.ends_with("rem"):
-			var result = float(clean_val.replace("rem", "")) * 16.0
-			print("DEBUG: StyleManager.parse_size() - Parsed bracketed rem: ", val_str, " -> ", result)
-			return result
-		elif clean_val.ends_with("%"):
-			print("DEBUG: StyleManager.parse_size() - Returning bracketed percentage: ", clean_val)
-			return clean_val
-		else:
-			var result = float(clean_val)
-			print("DEBUG: StyleManager.parse_size() - Parsed bracketed value: ", val_str, " -> ", result)
-			return result
+		var clean_val = val_str.trim_prefix("[").trim_suffix("]")
+		return _parse_unit_value(clean_val)
 
+	# Handle regular unit values
+	return _parse_unit_value(val_str)
+
+static func _parse_unit_value(val_str: String):
 	if val_str.ends_with("px"):
-		var result = float(val_str.replace("px", ""))
-		print("DEBUG: StyleManager.parse_size() - Parsed px: ", val_str, " -> ", result)
-		return result
-	if val_str.ends_with("rem"):
-		var result = float(val_str.replace("rem", "")) * 16.0
-		print("DEBUG: StyleManager.parse_size() - Parsed rem: ", val_str, " -> ", result)
-		return result
-	if val_str.ends_with("%"):
-		print("DEBUG: StyleManager.parse_size() - Returning percentage: ", val_str)
-		return val_str
-
-	# Try to parse as float
-	if val_str.is_valid_float():
-		var result = float(val_str)
-		print("DEBUG: StyleManager.parse_size() - Parsed float: ", val_str, " -> ", result)
-		return result
-
-	print("ERROR: StyleManager.parse_size() - Could not parse value: ", val_str)
+		return float(val_str.trim_suffix("px"))
+	elif val_str.ends_with("rem"):
+		return float(val_str.trim_suffix("rem")) * 16.0
+	elif val_str.ends_with("%"):
+		return val_str  # Return as string for percentage handling
+	elif val_str.is_valid_float():
+		return float(val_str)
 	return null
 
 static func apply_element_styles(node: Control, element: HTMLParser.HTMLElement, parser: HTMLParser) -> Control:
