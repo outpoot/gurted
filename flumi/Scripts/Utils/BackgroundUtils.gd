@@ -2,8 +2,19 @@ class_name BackgroundUtils
 extends RefCounted
 
 static func create_stylebox_from_styles(styles: Dictionary = {}, container: Control = null) -> StyleBoxFlat:
+	# Add null checks and error handling
+	if not styles:
+		print("ERROR: BackgroundUtils.create_stylebox_from_styles() - styles is null or empty")
+		return StyleBoxFlat.new()
+
+	if container and not is_instance_valid(container):
+		print("ERROR: BackgroundUtils.create_stylebox_from_styles() - container is not valid")
+		container = null
+
+	print("DEBUG: BackgroundUtils.create_stylebox_from_styles() - Creating stylebox for container: ", container.name if container else "null")
+
 	var style_box = StyleBoxFlat.new()
-	
+
 	# Background color
 	var bg_color = null
 	if styles.has("background-color"):
@@ -29,7 +40,7 @@ static func create_stylebox_from_styles(styles: Dictionary = {}, container: Cont
 		style_box.corner_radius_top_right = radius
 		style_box.corner_radius_bottom_left = radius
 		style_box.corner_radius_bottom_right = radius
-	
+		
 	# Border properties
 	var has_border = false
 
@@ -37,13 +48,13 @@ static func create_stylebox_from_styles(styles: Dictionary = {}, container: Cont
 	style_box.border_width_right = 0
 	style_box.border_width_bottom = 0
 	style_box.border_width_left = 0
-	
+
 	var general_border_width = null
 	if styles.has("border-width"):
 		general_border_width = styles["border-width"]
 	elif container and container.has_meta("custom_css_border_width"):
 		general_border_width = container.get_meta("custom_css_border_width")
-	
+
 	if general_border_width:
 		has_border = true
 		var parsed_width = StyleManager.parse_size(general_border_width)
@@ -51,25 +62,25 @@ static func create_stylebox_from_styles(styles: Dictionary = {}, container: Cont
 		style_box.border_width_right = parsed_width
 		style_box.border_width_bottom = parsed_width
 		style_box.border_width_left = parsed_width
-	
+		
 	var individual_border_keys = [
 		["border-top-width", "border_width_top"],
 		["border-right-width", "border_width_right"],
 		["border-bottom-width", "border_width_bottom"],
 		["border-left-width", "border_width_left"]
 	]
-	
+
 	for pair in individual_border_keys:
 		var style_key = pair[0]
 		var property_name = pair[1]
 		var width = null
 		var meta_key = "custom_css_" + style_key.replace("-", "_")
-		
+
 		if styles.has(style_key):
 			width = styles[style_key]
 		elif container and container.has_meta(meta_key):
 			width = container.get_meta(meta_key)
-		
+
 		if width:
 			has_border = true
 			var parsed_width = StyleManager.parse_size(width)
@@ -83,7 +94,7 @@ static func create_stylebox_from_styles(styles: Dictionary = {}, container: Cont
 	elif container and container.has_meta("custom_css_border_color"):
 		border_color = container.get_meta("custom_css_border_color")
 		has_border_color = true
-	
+
 	# If we have a border color but no width set, default to 1px
 	if has_border_color and not has_border:
 		has_border = true
@@ -91,7 +102,7 @@ static func create_stylebox_from_styles(styles: Dictionary = {}, container: Cont
 		style_box.border_width_right = 1
 		style_box.border_width_bottom = 1
 		style_box.border_width_left = 1
-	
+
 	if has_border:
 		style_box.border_color = border_color
 	
@@ -101,7 +112,7 @@ static func create_stylebox_from_styles(styles: Dictionary = {}, container: Cont
 		has_padding = styles.has("padding") or styles.has("padding-top") or styles.has("padding-right") or styles.has("padding-bottom") or styles.has("padding-left")
 	elif container:
 		has_padding = container.has_meta("padding") or container.has_meta("padding_top") or container.has_meta("padding_right") or container.has_meta("padding_bottom") or container.has_meta("padding_left")
-	
+
 	if has_padding:
 		# General padding
 		var padding_val = null
@@ -109,24 +120,25 @@ static func create_stylebox_from_styles(styles: Dictionary = {}, container: Cont
 			padding_val = StyleManager.parse_size(styles["padding"])
 		elif container and container.has_meta("padding"):
 			padding_val = StyleManager.parse_size(container.get_meta("padding"))
-		
+
 		if padding_val:
 			style_box.content_margin_left = padding_val
 			style_box.content_margin_right = padding_val
 			style_box.content_margin_top = padding_val
 			style_box.content_margin_bottom = padding_val
-		
+
 		# Individual padding values override general padding
 		var padding_mappings = [["padding-left", "content_margin_left"], ["padding-right", "content_margin_right"], ["padding-top", "content_margin_top"], ["padding-bottom", "content_margin_bottom"]]
-		
+
 		for mapping in padding_mappings:
 			var style_key = mapping[0]
 			var property_key = mapping[1]
 			var val = get_style_or_meta_value(styles, container, style_key)
-			
+
 			if val != null:
 				style_box.set(property_key, val)
 	
+	print("DEBUG: BackgroundUtils.create_stylebox_from_styles() - Completed for container: ", container.name if container else "null")
 	return style_box
 
 # for AutoSizingFlexContainer

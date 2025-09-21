@@ -4,32 +4,87 @@ extends RefCounted
 static var body_text_color: Color = Color.BLACK
 
 static func parse_size(val):
-	if val == null: return null
+	print("DEBUG: StyleManager.parse_size() - Parsing value: ", val)
+
+	# Add comprehensive null and type checks
+	if val == null:
+		print("ERROR: StyleManager.parse_size() - Input value is null")
+		return null
+
 	if typeof(val) == TYPE_INT or typeof(val) == TYPE_FLOAT:
+		print("DEBUG: StyleManager.parse_size() - Returning numeric value: ", val)
 		return float(val)
-	
-	# Handle bracketed values like [5px], [2rem], [50%]
-	if val.begins_with("[") and val.ends_with("]"):
-		var clean_val = val.replace("[", "").replace("]", "")
+
+	# Convert to string for string operations
+	var val_str = str(val)
+	if val_str.is_empty():
+		print("ERROR: StyleManager.parse_size() - Value string is empty")
+		return null
+
+		# Handle bracketed values like [5px], [2rem], [50%]
+	if val_str.begins_with("[") and val_str.ends_with("]"):
+		var clean_val = val_str.replace("[", "").replace("]", "")
 		if clean_val.ends_with("px"):
-			return float(clean_val.replace("px", ""))
+			var result = float(clean_val.replace("px", ""))
+			print("DEBUG: StyleManager.parse_size() - Parsed bracketed px: ", val_str, " -> ", result)
+			return result
 		elif clean_val.ends_with("rem"):
-			return float(clean_val.replace("rem", "")) * 16.0
+			var result = float(clean_val.replace("rem", "")) * 16.0
+			print("DEBUG: StyleManager.parse_size() - Parsed bracketed rem: ", val_str, " -> ", result)
+			return result
 		elif clean_val.ends_with("%"):
+			print("DEBUG: StyleManager.parse_size() - Returning bracketed percentage: ", clean_val)
 			return clean_val
 		else:
-			return float(clean_val)
-	
-	if val.ends_with("px"):
-		return float(val.replace("px", ""))
-	if val.ends_with("rem"):
-		return float(val.replace("rem", "")) * 16.0
-	if val.ends_with("%"):
-		return val
-	return float(val)
+			var result = float(clean_val)
+			print("DEBUG: StyleManager.parse_size() - Parsed bracketed value: ", val_str, " -> ", result)
+			return result
+
+	if val_str.ends_with("px"):
+		var result = float(val_str.replace("px", ""))
+		print("DEBUG: StyleManager.parse_size() - Parsed px: ", val_str, " -> ", result)
+		return result
+	if val_str.ends_with("rem"):
+		var result = float(val_str.replace("rem", "")) * 16.0
+		print("DEBUG: StyleManager.parse_size() - Parsed rem: ", val_str, " -> ", result)
+		return result
+	if val_str.ends_with("%"):
+		print("DEBUG: StyleManager.parse_size() - Returning percentage: ", val_str)
+		return val_str
+
+	# Try to parse as float
+	if val_str.is_valid_float():
+		var result = float(val_str)
+		print("DEBUG: StyleManager.parse_size() - Parsed float: ", val_str, " -> ", result)
+		return result
+
+	print("ERROR: StyleManager.parse_size() - Could not parse value: ", val_str)
+	return null
 
 static func apply_element_styles(node: Control, element: HTMLParser.HTMLElement, parser: HTMLParser) -> Control:
-	var styles = parser.get_element_styles_with_inheritance(element, "", [])
+	# Add comprehensive null checks and error handling
+	if not node:
+		print("ERROR: StyleManager.apply_element_styles() - node is null")
+		return null
+
+	if not element:
+		print("ERROR: StyleManager.apply_element_styles() - element is null")
+		return node
+
+	if not parser:
+		print("ERROR: StyleManager.apply_element_styles() - parser is null")
+		return node
+
+	# Prevent race conditions by checking if node is still valid
+	if not is_instance_valid(node):
+		print("ERROR: StyleManager.apply_element_styles() - node is not valid")
+		return null
+
+	print("DEBUG: StyleManager.apply_element_styles() - Starting for element: ", element.tag_name)
+
+	var styles = {}
+	styles = parser.get_element_styles_with_inheritance(element, "", [])
+
 	var label = null
 	var target = null
 
@@ -46,17 +101,18 @@ static func apply_element_styles(node: Control, element: HTMLParser.HTMLElement,
 		apply_input_border_styles(node, styles)
 	elif element.tag_name == "img":
 		apply_image_styles(node, styles)
-
 	# Unified font applying for label and button
 	if target and styles.has("font-family") and styles["font-family"] not in ["sans-serif", "serif", "monospace"]:
 		var main_node = Engine.get_main_loop().current_scene
-		main_node.register_font_dependent_element(target, styles, element, parser)
+		if main_node and main_node.has_method("register_font_dependent_element"):
+			main_node.register_font_dependent_element(target, styles, element, parser)
 
 	var width = null
 	var height = null
 
 	if styles.has("width"):
 		width = parse_size(styles["width"])
+
 	if styles.has("height"):
 		height = parse_size(styles["height"])
 
@@ -83,7 +139,7 @@ static func apply_element_styles(node: Control, element: HTMLParser.HTMLElement,
 			else:
 				node.custom_minimum_size.x = width
 				node.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
-		
+
 		if height != null:
 			if height is String and height.ends_with("%"):
 				if height == "100%":
@@ -104,7 +160,7 @@ static func apply_element_styles(node: Control, element: HTMLParser.HTMLElement,
 			else:
 				node.custom_minimum_size.y = height
 				node.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
-	
+
 	apply_element_centering(node, styles)
 
 	if label and label != node:
@@ -113,26 +169,26 @@ static func apply_element_styles(node: Control, element: HTMLParser.HTMLElement,
 	# Apply z-index
 	if styles.has("z-index"):
 		node.z_index = styles["z-index"]
-	
+
 	# Apply opacity
 	if styles.has("opacity"):
 		node.modulate.a = styles["opacity"]
-	
+
 	if styles.has("display"):
 		if styles["display"] == "none":
 			node.visible = false
 		else:
 			node.visible = true
-	
+
 	# Apply cursor
 	if styles.has("cursor"):
 		var cursor_shape = get_cursor_shape_from_type(styles["cursor"])
 		node.mouse_default_cursor_shape = cursor_shape
-		
+
 		# For text elements, apply cursor and handle mouse events appropriately
 		if label:
 			label.mouse_default_cursor_shape = cursor_shape
-			
+
 			# For non-pointer cursors on RichTextLabel, disable text interaction and let parent handle cursor
 			if label is RichTextLabel and cursor_shape != Control.CURSOR_POINTING_HAND:
 				label.selection_enabled = false
@@ -148,31 +204,31 @@ static func apply_element_styles(node: Control, element: HTMLParser.HTMLElement,
 	# Check for margins first and wrap in MarginContainer if needed
 	var has_margin = styles.has("margin") or styles.has("margin-top") or styles.has("margin-right") or styles.has("margin-bottom") or styles.has("margin-left")
 	node = handle_margin_wrapper(node, styles, has_margin)
-	
+
 	var needs_styling = styles.has("background-color") or styles.has("border-radius") or styles.has("border-width") or styles.has("border-top-width") or styles.has("border-right-width") or styles.has("border-bottom-width") or styles.has("border-left-width") or styles.has("border-color") or styles.has("padding") or styles.has("padding-top") or styles.has("padding-right") or styles.has("padding-bottom") or styles.has("padding-left")
-	
+
 	if needs_styling:
 		# If node is a MarginContainer wrapper, get the actual content node for styling
 		var content_node = node
 		if node is MarginContainer and node.has_meta("is_margin_wrapper"):
 			if node.get_child_count() > 0:
 				content_node = node.get_child(0)
-		
+
 		var target_node_for_bg = content_node if content_node is FlexContainer else (label if label else content_node)
 		if target_node_for_bg:
 			# Clear existing metadata first to ensure clean state
 			clear_styling_metadata(target_node_for_bg)
-			
+
 			# Set new metadata based on current styles
 			set_styling_metadata(target_node_for_bg, styles)
-			
+
 			if target_node_for_bg is FlexContainer:
 				BackgroundUtils.update_background_panel(target_node_for_bg)
 			elif target_node_for_bg is PanelContainer:
 				apply_stylebox_to_panel_container(target_node_for_bg, styles)
 			else:
 				apply_stylebox_to_container_direct(target_node_for_bg, styles)
-			
+
 			if target_node_for_bg.has_method("add_background_rect"):
 				target_node_for_bg.call_deferred("add_background_rect")
 	else:
@@ -180,11 +236,11 @@ static func apply_element_styles(node: Control, element: HTMLParser.HTMLElement,
 		if node is MarginContainer and node.has_meta("is_margin_wrapper"):
 			if node.get_child_count() > 0:
 				content_node = node.get_child(0)
-		
+
 		var target_node_for_bg = content_node if content_node is FlexContainer else (label if label else content_node)
 		if target_node_for_bg:
 			clear_styling_metadata(target_node_for_bg)
-			
+
 			if target_node_for_bg is FlexContainer:
 				BackgroundUtils.update_background_panel(target_node_for_bg)
 			elif target_node_for_bg is PanelContainer:
@@ -197,14 +253,14 @@ static func apply_element_styles(node: Control, element: HTMLParser.HTMLElement,
 		apply_styles_to_label(label, styles, element, parser)
 
 	var transform_target = node
-	
+
 	if node is MarginContainer and node.name.begins_with("MarginWrapper_"):
 		if node.get_child_count() > 0:
 			transform_target = node.get_child(0)
-	
+
 	apply_transform_properties(transform_target, styles)
 
-
+	print("DEBUG: StyleManager.apply_element_styles() - Completed for element: ", element.tag_name)
 	return node
 
 static func apply_stylebox_to_panel_container(panel_container: PanelContainer, styles: Dictionary) -> void:
@@ -413,11 +469,27 @@ static func apply_margin_styles_to_container(margin_container: MarginContainer, 
 				margin_container.add_theme_constant_override(theme_key, margin_val)
 
 static func apply_styles_to_label(label: Control, styles: Dictionary, element: HTMLParser.HTMLElement, parser, text_override: String = "", is_refresh: bool = false) -> void:
+	print("DEBUG: StyleManager.apply_styles_to_label() - Applying styles to label: ", label.name if label else "null")
+
+	# Add comprehensive null checks
+	if not label:
+		print("ERROR: StyleManager.apply_styles_to_label() - Label is null")
+		return
+
+	if not styles:
+		print("WARNING: StyleManager.apply_styles_to_label() - Styles dictionary is null or empty")
+		return
+
+	if not is_instance_valid(label):
+		print("ERROR: StyleManager.apply_styles_to_label() - Label is not valid")
+		return
+
 	if label is Button:
 		apply_font_to_button(label, styles)
 		return
-	
+
 	if not label is RichTextLabel:
+		print("WARNING: StyleManager.apply_styles_to_label() - Label is not RichTextLabel or Button")
 		return
 	
 	if not is_refresh and styles.has("font-family") and styles["font-family"] not in ["sans-serif", "serif", "monospace"]:
@@ -755,13 +827,28 @@ static func apply_image_styles(image_node: Control, styles: Dictionary) -> void:
 				texture_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
 
 static func apply_transform_properties(node: Control, styles: Dictionary) -> void:
+	print("DEBUG: StyleManager.apply_transform_properties() - Applying transforms to node: ", node.name if node else "null")
+
+	# Add comprehensive null checks
+	if not node:
+		print("ERROR: StyleManager.apply_transform_properties() - Node is null")
+		return
+
+	if not styles:
+		print("WARNING: StyleManager.apply_transform_properties() - Styles dictionary is null or empty")
+		return
+
+	if not is_instance_valid(node):
+		print("ERROR: StyleManager.apply_transform_properties() - Node is not valid")
+		return
+
 	if node is FlexContainer:
 		var has_panel_children = false
 		for child in node.get_children():
 			if child is PanelContainer:
 				has_panel_children = true
 				break
-		
+
 		if has_panel_children:
 			apply_transform_properties_direct(node, styles)
 		else:
@@ -846,6 +933,66 @@ static func apply_flexcontainer_centering(node: Control, styles: Dictionary) -> 
 	if should_center_h or should_center_v:
 		node.set_meta("size_flags_set_by_style_manager", true)
 
+static func cleanup_stale_styleboxes(node: Control) -> void:
+	print("DEBUG: StyleManager.cleanup_stale_styleboxes() - Cleaning up node: ", node.name if node else "null")
+
+	if not node:
+		print("ERROR: StyleManager.cleanup_stale_styleboxes() - Node is null")
+		return
+
+	if not is_instance_valid(node):
+		print("ERROR: StyleManager.cleanup_stale_styleboxes() - Node is not valid")
+		return
+
+	# Remove theme stylebox overrides that might be stale
+	node.remove_theme_stylebox_override("panel")
+	node.remove_theme_stylebox_override("background")
+	node.remove_theme_stylebox_override("normal")
+	node.remove_theme_stylebox_override("hover")
+	node.remove_theme_stylebox_override("pressed")
+	node.remove_theme_stylebox_override("focus")
+
+	# Clear styling metadata
+	clear_styling_metadata(node)
+
+	# Clear any transform-related metadata
+	if node.has_meta("css_transform_applied"):
+		node.remove_meta("css_transform_applied")
+
+	# Reset transforms to default
+	node.scale = Vector2.ONE
+	node.rotation = 0.0
+	node.pivot_offset = Vector2.ZERO
+
+	# Clear size-related metadata
+	if node.has_meta("size_flags_set_by_style_manager"):
+		node.remove_meta("size_flags_set_by_style_manager")
+
+	print("DEBUG: StyleManager.cleanup_stale_styleboxes() - Cleanup completed")
+
+static func cleanup_all_stale_resources() -> void:
+	"""
+	Global cleanup function to clean up all styling resources
+	"""
+	print("DEBUG: StyleManager.cleanup_all_stale_resources() - Starting global cleanup")
+
+	var main_scene = Engine.get_main_loop().current_scene
+	if main_scene:
+		_cleanup_node_tree(main_scene)
+
+static func _cleanup_node_tree(node: Node) -> void:
+	"""
+	Recursively cleanup all nodes in the tree
+	"""
+	if not node or not is_instance_valid(node):
+		return
+
+	if node is Control:
+		cleanup_stale_styleboxes(node)
+
+	for child in node.get_children():
+		_cleanup_node_tree(child)
+
 static func apply_element_centering(node: Control, styles: Dictionary) -> void:
 	var should_center_h = styles.has("mx-auto") or styles.has("justify-self-center")
 	var should_center_v = styles.has("my-auto") or styles.has("align-self-center")
@@ -876,3 +1023,128 @@ static func apply_element_centering(node: Control, styles: Dictionary) -> void:
 		
 		if should_center_h or should_center_v:
 			node.set_meta("size_flags_set_by_style_manager", true)
+
+# StyleLogger class for comprehensive debugging and monitoring
+class StyleLogger:
+	static var log_file_path: String = "user://style_debug.log"
+	static var enable_file_logging: bool = true
+	static var enable_console_logging: bool = true
+	static var log_level: String = "DEBUG"  # DEBUG, INFO, WARNING, ERROR
+
+	static func log(level: String, message: String, context: String = "") -> void:
+		var timestamp = Time.get_datetime_string_from_system()
+		var log_entry = "[%s] [%s] %s" % [timestamp, level, message]
+
+		if context != "":
+			log_entry += " [%s]" % context
+
+		# Console logging
+		if enable_console_logging:
+			match level:
+				"DEBUG":
+					if log_level == "DEBUG":
+						print("DEBUG: ", message, " ", context if context != "" else "")
+				"INFO":
+					print("INFO: ", message, " ", context if context != "" else "")
+				"WARNING":
+					print("WARNING: ", message, " ", context if context != "" else "")
+				"ERROR":
+					print("ERROR: ", message, " ", context if context != "" else "")
+
+		# File logging
+		if enable_file_logging:
+			var file = FileAccess.open(log_file_path, FileAccess.READ_WRITE)
+			if file:
+				file.seek_end()
+				file.store_line(log_entry)
+				file.close()
+			else:
+				# Create new file if it doesn't exist
+				file = FileAccess.open(log_file_path, FileAccess.WRITE)
+				if file:
+					file.store_line("# StyleManager Debug Log")
+					file.store_line(log_entry)
+					file.close()
+
+	static func debug(message: String, context: String = "") -> void:
+		StyleLogger.log("DEBUG", message, context)
+
+	static func info(message: String, context: String = "") -> void:
+		StyleLogger.log("INFO", message, context)
+
+	static func warning(message: String, context: String = "") -> void:
+		StyleLogger.log("WARNING", message, context)
+
+	static func error(message: String, context: String = "") -> void:
+		StyleLogger.log("ERROR", message, context)
+
+	static func clear_log() -> void:
+		var file = FileAccess.open(log_file_path, FileAccess.WRITE)
+		if file:
+			file.store_line("# StyleManager Debug Log - Cleared at " + Time.get_datetime_string_from_system())
+			file.close()
+
+	static func get_performance_metrics() -> Dictionary:
+		return {
+			"timestamp": Time.get_time_string_from_system(),
+			"memory_usage": OS.get_static_memory_usage(),
+			"node_count": get_tree_node_count(),
+			"stylebox_count": get_stylebox_count()
+		}
+
+	static func get_tree_node_count(node: Node = null) -> int:
+		if not node:
+			node = Engine.get_main_loop().current_scene
+		if not node:
+			return 0
+
+		var count = 1
+		for child in node.get_children():
+			count += get_tree_node_count(child)
+		return count
+
+	static func get_stylebox_count() -> int:
+		var count = 0
+		var main_scene = Engine.get_main_loop().current_scene
+		if main_scene:
+			count += _count_styleboxes_in_node(main_scene)
+		return count
+
+	static func _count_styleboxes_in_node(node: Node) -> int:
+		var count = 0
+		if node is Control:
+			var control = node as Control
+			# Count theme stylebox overrides
+			var theme = control.theme
+			if theme:
+				count += theme.get_stylebox_list("").size()
+
+		for child in node.get_children():
+			count += _count_styleboxes_in_node(child)
+
+		return count
+
+# Enhanced logging integration throughout StyleManager
+static func log_style_operation(operation: String, element_name: String, details: String = "") -> void:
+	StyleLogger.debug("Style operation: %s on %s %s" % [operation, element_name, details])
+
+static func log_performance_metrics(context: String = "") -> void:
+	var metrics = StyleLogger.get_performance_metrics()
+	StyleLogger.info("Performance metrics %s: %s" % [context, str(metrics)])
+
+static func log_error_with_context(error: String, context: String, stack_trace: String = "") -> void:
+	var message = "Error in %s: %s" % [context, error]
+	if stack_trace != "":
+		message += " Stack: %s" % stack_trace
+	StyleLogger.error(message, context)
+
+# Initialize logging system
+static func initialize_logging() -> void:
+	StyleLogger.clear_log()
+	StyleLogger.info("StyleManager logging system initialized")
+	log_performance_metrics("initialization")
+
+# Cleanup logging resources
+static func cleanup_logging() -> void:
+	StyleLogger.info("StyleManager logging system cleanup")
+	log_performance_metrics("cleanup")

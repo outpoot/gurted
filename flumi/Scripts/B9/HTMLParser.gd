@@ -231,57 +231,112 @@ func process_external_styles(base_url: String = "") -> void:
 	parse_result.css_parser.parse()
 
 func get_element_styles_with_inheritance(element: HTMLElement, event: String = "", visited_elements: Array = []) -> Dictionary:
-	if !parse_result.css_parser:
+	print("DEBUG: HTMLParser.get_element_styles_with_inheritance() - Getting styles for element: ", element.tag_name if element else "null", " event: ", event)
+
+	# Add comprehensive null checks
+	if not element:
+		print("ERROR: HTMLParser.get_element_styles_with_inheritance() - Element is null")
 		return {}
-	# Prevent infinite recursion
+
+	if not parse_result:
+		print("ERROR: HTMLParser.get_element_styles_with_inheritance() - Parse result is null")
+		return {}
+
+	# Prevent infinite recursion with better checking
 	if element in visited_elements:
+		print("WARNING: HTMLParser.get_element_styles_with_inheritance() - Infinite recursion detected for element: ", element.tag_name)
 		return {}
 
 	var new_visited_for_styles = visited_elements.duplicate()
 	new_visited_for_styles.append(element)
-	
+
 	var styles = {}
-	
-	styles.merge(parse_result.css_parser.stylesheet.get_styles_for_element(event, element))
+
+	# Check if CSS parser is available
+	if parse_result.css_parser and parse_result.css_parser.stylesheet:
+		var css_styles = parse_result.css_parser.stylesheet.get_styles_for_element(event, element)
+		if css_styles:
+			styles.merge(css_styles)
+	else:
+		print("WARNING: HTMLParser.get_element_styles_with_inheritance() - CSS parser not available")
 	# Apply inline styles (higher priority) - force override CSS rules
+
 	var inline_style = element.get_attribute("style")
 	if inline_style.length() > 0:
 		var inline_parsed = parse_inline_style_with_event(inline_style, event)
 		for property in inline_parsed:
 			styles[property] = inline_parsed[property]
-	
+
 	# Inherit certain properties from parent elements
 	var inheritable_properties = ["font-size", "color", "font-family", "cursor", "font-bold", "font-italic", "underline"]
 	var parent_element = element.parent
-	while parent_element:
+
+	# Add safety check to prevent infinite parent traversal
+	var safety_counter = 0
+	var max_parents = 50  # Prevent infinite loops
+
+	while parent_element and safety_counter < max_parents:
 		var parent_styles = get_element_styles_internal(parent_element, event)
 		for property in inheritable_properties:
 			# Only inherit if child doesn't already have this property
 			if not styles.has(property) and parent_styles.has(property):
 				styles[property] = parent_styles[property]
 		parent_element = parent_element.parent
-	
+		safety_counter += 1
+
+	if safety_counter >= max_parents:
+		print("ERROR: HTMLParser.get_element_styles_with_inheritance() - Safety limit reached while traversing parents")
+
+	print("DEBUG: HTMLParser.get_element_styles_with_inheritance() - Returning ", styles.size(), " styles")
 	return styles
 
 func get_element_styles_internal(element: HTMLElement, event: String = "") -> Dictionary:
+	print("DEBUG: HTMLParser.get_element_styles_internal() - Getting internal styles for element: ", element.tag_name if element else "null", " event: ", event)
+
+	# Add comprehensive null checks
+	if not element:
+		print("ERROR: HTMLParser.get_element_styles_internal() - Element is null")
+		return {}
+
+	if not parse_result:
+		print("ERROR: HTMLParser.get_element_styles_internal() - Parse result is null")
+		return {}
+
 	var styles = {}
-	
+
 	# Apply CSS rules
-	if parse_result.css_parser:
-		styles.merge(parse_result.css_parser.stylesheet.get_styles_for_element(event, element))
-	
+	if parse_result.css_parser and parse_result.css_parser.stylesheet:
+		var css_styles = parse_result.css_parser.stylesheet.get_styles_for_element(event, element)
+		if css_styles:
+			styles.merge(css_styles)
+	else:
+		print("WARNING: HTMLParser.get_element_styles_internal() - CSS parser not available")
+
 	# Apply inline styles (higher priority) - force override CSS rules
+
 	var inline_style = element.get_attribute("style")
 	if inline_style.length() > 0:
 		var inline_parsed = parse_inline_style_with_event(inline_style, event)
 		for property in inline_parsed:
 			styles[property] = inline_parsed[property]  # Force override
-	
+
+	print("DEBUG: HTMLParser.get_element_styles_internal() - Returning ", styles.size(), " styles")
 	return styles
 
 func parse_inline_style_with_event(style_string: String, event: String = "") -> Dictionary:
+	print("DEBUG: HTMLParser.parse_inline_style_with_event() - Parsing style: ", style_string, " event: ", event)
+
 	var properties = {}
-	
+
+	# Add comprehensive null and empty checks
+	if style_string == null or style_string.is_empty():
+		print("WARNING: HTMLParser.parse_inline_style_with_event() - Style string is null or empty")
+		return properties
+
+	if not parse_result:
+		print("ERROR: HTMLParser.parse_inline_style_with_event() - Parse result is null")
+		return properties
+
 	# Split style string into individual utility classes
 	var utility_classes = style_string.split(" ") # e.g. ["bg-red-500, "text-lg", "hover:bg-blue-500"]
 
@@ -289,7 +344,7 @@ func parse_inline_style_with_event(style_string: String, event: String = "") -> 
 		utility_name = utility_name.strip_edges() # e.g. "bg-red-500"
 		if utility_name.is_empty():
 			continue
-		
+
 		# Check if this utility is for the requested event
 		if event.length() > 0:
 			if utility_name.begins_with(event + ":"): # e.g. "hover:bg-blue-500"
@@ -322,7 +377,8 @@ func parse_inline_style_with_event(style_string: String, event: String = "") -> 
 					CSSParser.parse_utility_class_internal(rule, utility_name)
 					for property in rule.properties:
 						properties[property] = rule.properties[property]
-	
+
+	print("DEBUG: HTMLParser.parse_inline_style_with_event() - Returning ", properties.size(), " properties")
 	return properties
 
 static func extract_class_names(element: HTMLElement) -> Array[String]:
