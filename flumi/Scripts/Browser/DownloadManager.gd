@@ -72,13 +72,8 @@ func _start_download(download_id: String, url: String, save_path: String, downlo
 	
 	progress_ui.setup_download(download_id, download_data)
 	progress_ui.download_cancelled.connect(_on_download_progress_cancelled)
-	
-	var http_request = HTTPRequest.new()
-	http_request.name = "DownloadRequest_" + download_id
-	main_node.add_child(http_request)
-	
+
 	active_downloads[download_id] = {
-		"http_request": http_request,
 		"save_path": save_path,
 		"progress_ui": progress_ui,
 		"start_time": Time.get_ticks_msec() / 1000.0,
@@ -88,25 +83,43 @@ func _start_download(download_id: String, url: String, save_path: String, downlo
 		"filename": download_data.get("filename", ""),
 		"current_site": download_data.get("current_site", "")
 	}
-	
+
+	if url.begins_with("gurt://"):
+		_download_gurt_resource(download_id, url)
+	else:
+		_start_http_download(download_id, url)
+
+func _start_http_download(download_id: String, url: String):
+	var http_request = HTTPRequest.new()
+	http_request.name = "DownloadRequest_" + download_id
+	main_node.add_child(http_request)
+
+	if not active_downloads.has(download_id):
+		http_request.queue_free()
+		return
+
+	active_downloads[download_id]["http_request"] = http_request
+
+	var save_path = active_downloads[download_id]["save_path"]
 	http_request.set_download_file(save_path)
-	
+
 	http_request.request_completed.connect(func(result: int, response_code: int, headers: PackedStringArray, body: PackedByteArray):
 		_on_download_completed(download_id, result, response_code, headers, body)
 	)
-	
+
 	var headers = ["User-Agent: GURT Browser 1.0"]
 	var request_error = http_request.request(url, headers)
-	
+
 	if request_error != OK:
 		var error_msg = "Failed to start download: " + str(request_error)
 		print(error_msg)
+		var progress_ui = active_downloads[download_id]["progress_ui"]
 		if progress_ui:
 			progress_ui.set_error(error_msg)
 		http_request.queue_free()
 		active_downloads.erase(download_id)
 		return
-	
+
 	var timer = Timer.new()
 	timer.name = "ProgressTimer_" + download_id
 	timer.wait_time = 0.5
@@ -114,12 +127,59 @@ func _start_download(download_id: String, url: String, save_path: String, downlo
 	main_node.add_child(timer)
 	timer.start()
 
+func _download_gurt_resource(download_id: String, url: String):
+	if not active_downloads.has(download_id):
+		return
+
+	var progress_ui = active_downloads[download_id]["progress_ui"]
+	var save_path = active_downloads[download_id]["save_path"]
+
+	if progress_ui:
+		progress_ui.update_progress(0, 0, -1) # -1 indicates unknown total size
+
+	var resource_data = await Network.fetch_gurt_resource(url, true)
+
+	if not active_downloads.has(download_id):
+		return
+
+	if resource_data.is_empty():
+		var error_msg = "Failed to fetch gurt:// resource"
+		print(error_msg)
+		if progress_ui:
+			progress_ui.set_error(error_msg)
+		active_downloads.erase(download_id)
+		return
+
+	var file = FileAccess.open(save_path, FileAccess.WRITE)
+	if not file:
+		var error_msg = "Failed to create download file: " + save_path
+		print(error_msg)
+		if progress_ui:
+			progress_ui.set_error(error_msg)
+		active_downloads.erase(download_id)
+		return
+
+	file.store_buffer(resource_data)
+	file.close()
+
+	var file_size = resource_data.size()
+
+	active_downloads[download_id]["total_bytes"] = file_size
+	active_downloads[download_id]["downloaded_bytes"] = file_size
+
+	if progress_ui:
+		progress_ui.set_completed(save_path)
+
+	_add_to_download_history(active_downloads[download_id], file_size, save_path)
+
+	active_downloads.erase(download_id)
+
 func _update_download_progress(download_id: String):
 	if not active_downloads.has(download_id):
 		return
 	
 	var download_info = active_downloads[download_id]
-	var http_request = download_info.http_request
+	var http_request = download_info.get("http_request", null)
 	var progress_ui = download_info.progress_ui
 	
 	if http_request and progress_ui:
@@ -180,11 +240,12 @@ func _on_download_progress_cancelled(download_id: String):
 		return
 	
 	var download_info = active_downloads[download_id]
-	
-	if download_info.http_request:
-		download_info.http_request.cancel_request()
-		download_info.http_request.queue_free()
-	
+
+	var http_request = download_info.get("http_request", null)
+	if http_request:
+		http_request.cancel_request()
+		http_request.queue_free()
+
 	var timer = main_node.get_node_or_null("ProgressTimer_" + download_id)
 	if timer:
 		timer.queue_free()

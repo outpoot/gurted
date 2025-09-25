@@ -42,6 +42,31 @@ var response_body_bytes: PackedByteArray = []
 var mime_type: String = ""
 var is_from_lua: bool = false
 
+var websocket_id: String = ""
+var websocket_event_type: String = "" # "connection", "close", "error"
+var connection_status: String = "" # "connecting", "open", "closing", "closed"
+var websocket_messages: Array[WebSocketMessage] = []
+
+class WebSocketMessage:
+	var hour: int
+	var minute: int
+	var second: int
+	var direction: String # "sent" or "received"
+	var content: String
+	var size: int
+
+	func _init(dir: String, msg: String):
+		var local_time = Time.get_datetime_dict_from_system(false)
+		hour = local_time.hour
+		minute = local_time.minute
+		second = local_time.second
+		direction = dir
+		content = msg
+		size = msg.length()
+
+	func get_formatted_time() -> String:
+		return "%02d:%02d:%02d" % [hour, minute, second]
+
 func _init(request_url: String = "", request_method: String = "GET"):
 	id = generate_id()
 	url = request_url
@@ -62,6 +87,16 @@ func generate_id() -> String:
 func extract_name_from_url(request_url: String) -> String:
 	if request_url.is_empty():
 		return "Unknown"
+
+	if request_url.begins_with("ws://") or request_url.begins_with("wss://"):
+		if not websocket_event_type.is_empty():
+			match websocket_event_type:
+				"connection":
+					return "WebSocket"
+				"close":
+					return "WebSocket Close"
+				"error":
+					return "WebSocket Error"
 	
 	var parts = request_url.split("/")
 	if parts.size() > 0:
@@ -177,7 +212,7 @@ static func format_bytes(given_size: int) -> String:
 	elif given_size < 1024 * 1024:
 		return str(given_size / 1024) + " KB"
 	else:
-		return str(given_size / (1024 * 1024)) + " MB"
+		return str(given_size / (1024.0 * 1024)) + " MB"
 
 func get_time_display() -> String:
 	if status == RequestStatus.PENDING:
@@ -205,3 +240,40 @@ func get_icon_texture() -> Texture2D:
 			return load("res://Assets/Icons/arrow-down-up.svg")
 		_:
 			return load("res://Assets/Icons/search.svg")
+
+static func create_websocket_connection(ws_url: String, ws_id: String) -> NetworkRequest:
+	var request = NetworkRequest.new(ws_url, "WS")
+	request.type = RequestType.SOCKET
+	request.websocket_id = ws_id
+	request.websocket_event_type = "connection"
+	request.connection_status = "connecting"
+	request.is_from_lua = true
+	return request
+
+func add_websocket_message(direction: String, message: String):
+	var ws_message = WebSocketMessage.new(direction, message)
+	websocket_messages.append(ws_message)
+	
+	var total_message_size = 0
+	for msg in websocket_messages:
+		total_message_size += msg.size
+	size = total_message_size
+
+func update_websocket_status(new_status: String, status_code: int = 200, status_text: String = "OK"):
+	connection_status = new_status
+	self.status_code = status_code
+	self.status_text = status_text
+	
+	match new_status:
+		"open":
+			status = RequestStatus.SUCCESS
+		"closed":
+			if status_code >= 1000 and status_code < 1100:
+				status = RequestStatus.SUCCESS
+			else:
+				status = RequestStatus.ERROR
+		"error":
+			status = RequestStatus.ERROR
+	
+	end_time = Time.get_ticks_msec()
+	time_ms = end_time - start_time

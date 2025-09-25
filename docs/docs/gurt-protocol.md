@@ -141,27 +141,19 @@ All connections must use TLS 1.3 for encryption. This means you have to generate
 
 ### Setup for Production
 
-For production deployments, you'll need to generate your own certificates since traditional Certificate Authorities don't support custom protocols:
+For production deployments, you'll need to install GurtCA from the Github repository for Gurted, and use it to request certificates for your domain.
 
-1. **Generate production certificates with OpenSSL:**
+1. **Generate production certificates with GurtCA:**
    ```bash
-   # Generate private key
-   openssl genpkey -algorithm RSA -out gurt-server.key -pkcs8 -v
-
-   # Generate certificate signing request
-   openssl req -new -key gurt-server.key -out gurt-server.csr
-
-   # Generate self-signed certificate (valid for 365 days)
-   openssl x509 -req -days 365 -in gurt-server.csr -signkey gurt-server.key -out gurt-server.crt
-
-   # Or generate both key and certificate in one step
-   openssl req -x509 -newkey rsa:4096 -keyout gurt-server.key -out gurt-server.crt -days 365 -nodes
+   gurtca request yourdomain.real --output ./certs
    ```
 
 2. **Deploy with production certificates:**
    ```bash
-   cargo run --release serve --cert gurt-server.crt --key gurt-server.key --host 0.0.0.0 --port 4878
+   cargo run --release serve --cert ./certs/yourdomain.real.crt --key ./certs/yourdomain.real.key --host 0.0.0.0 --port 4878
    ```
+
+Be careful, your `.key` file is the private key, do not share it with anyone!
 
 ### Development Environment Setup
 

@@ -48,6 +48,7 @@ const sidebars: SidebarsConfig = {
             'lua/crumbs',
             'lua/audio',
             'lua/canvas',
+            'lua/download',
             'lua/network',
             'lua/regex',
             'lua/handling',

@@ -158,7 +158,14 @@ impl DomainCrawler {
     }
 
     fn parse_clanker_txt(&self, content: &str, base_url: &str) -> Result<Vec<String>> {
-        let user_agent = &self.config.search.crawler_user_agent;
+        Self::parse_clanker_rules(
+            content,
+            base_url,
+            &self.config.search.crawler_user_agent,
+        )
+    }
+
+    fn parse_clanker_rules(content: &str, base_url: &str, user_agent: &str) -> Result<Vec<String>> {
         let mut disallow_all = false;
         let mut user_agent_matches = false;
         let mut allowed_urls = Vec::new();
@@ -169,26 +176,31 @@ impl DomainCrawler {
                 continue;
             }
 
-            if let Some(user_agent_value) = line.to_lowercase().strip_prefix("user-agent:") {
-                let current_user_agent = user_agent_value.trim().to_string();
-                user_agent_matches = current_user_agent == "*" || current_user_agent.eq_ignore_ascii_case(user_agent);
+            let (directive, value) = match line.split_once(':') {
+                Some((directive, value)) => (directive.trim().to_lowercase(), value.trim()),
+                None => continue,
+            };
+
+            if directive == "user-agent" {
+                user_agent_matches =
+                    value == "*" || value.eq_ignore_ascii_case(user_agent);
                 continue;
             }
 
-            if user_agent_matches {
-                if let Some(path_value) = line.to_lowercase().strip_prefix("disallow:") {
-                    let path = path_value.trim();
-                    if path == "/" {
-                        disallow_all = true;
-                        break;
-                    }
-                } else if let Some(path_value) = line.to_lowercase().strip_prefix("allow:") {
-                    let path = path_value.trim();
-                    if !path.is_empty() {
-                        let full_url = Self::normalize_url(format!("{}{}", base_url, path));
-                        debug!("Added allowed URL from clanker.txt: {}", full_url);
-                        allowed_urls.push(full_url);
-                    }
+            if !user_agent_matches {
+                continue;
+            }
+
+            if directive == "disallow" {
+                if value == "/" {
+                    disallow_all = true;
+                    break;
+                }
+            } else if directive == "allow" {
+                if !value.is_empty() {
+                    let full_url = Self::normalize_url(format!("{}{}", base_url, value));
+                    debug!("Added allowed URL from clanker.txt: {}", full_url);
+                    allowed_urls.push(full_url);
                 }
             }
         }
@@ -718,5 +730,42 @@ impl CrawlStats {
             errors: 0,
             duration_seconds: 0,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::DomainCrawler;
+
+    #[test]
+    fn parse_clanker_rules_preserves_case_in_allowed_urls() {
+        let content = "User-agent: TestBot\nAllow: /getpage?l=Fri,12Sep2025000605_ZzesV.txt\n";
+        let result = DomainCrawler::parse_clanker_rules(content, "gurt://wi.ki", "TestBot")
+            .expect("expected allow list");
+
+        assert_eq!(
+            result,
+            vec!["gurt://wi.ki/getpage?l=Fri,12Sep2025000605_ZzesV.txt".to_string()]
+        );
+    }
+
+    #[test]
+    fn parse_clanker_rules_handles_case_insensitive_directives() {
+        let content = "user-Agent: AnotherBot\nAlLoW: /MiXeD/Path.HTML\n";
+        let result = DomainCrawler::parse_clanker_rules(content, "gurt://example", "AnotherBot")
+            .expect("expected allow list");
+
+        assert_eq!(
+            result,
+            vec!["gurt://example/MiXeD/Path.HTML".to_string()]
+        );
+    }
+
+    #[test]
+    fn parse_clanker_rules_respects_disallow_all() {
+        let content = "User-agent: Bot\nDisallow: /\n";
+        let result = DomainCrawler::parse_clanker_rules(content, "gurt://example", "Bot");
+
+        assert!(result.is_err());
     }
 }

@@ -1,6 +1,6 @@
 [Setup]
 AppName=Flumi
-AppVersion=1.0.2
+AppVersion=1.0.3
 AppPublisher=Outpoot
 AppPublisherURL=https://github.com/gurted/flumi
 AppSupportURL=https://github.com/gurted/flumi/issues

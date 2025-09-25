@@ -1,5 +1,14 @@
 extends Node
 
+const ClientPool = preload("res://Scripts/ClientPool.gd")
+
+func _ready():
+	var timer = Timer.new()
+	timer.wait_time = 10.0
+	timer.autostart = true
+	timer.timeout.connect(ClientPool._cleanup_idle_clients)
+	add_child(timer)
+
 func fetch_image(url: String) -> ImageTexture:
 	if url.is_empty():
 		return null
@@ -170,27 +179,17 @@ func fetch_gurt_resource(url: String, as_binary: bool = false):
 	
 	var network_request = NetworkManager.start_request(gurt_url, "GET", false)
 	
-	var client = GurtProtocolClient.new()
-	
-	for ca_cert in CertificateManager.trusted_ca_certificates:
-		client.add_ca_certificate(ca_cert)
-	
-	if not client.create_client_with_dns(30, GurtProtocol.DNS_SERVER_IP, GurtProtocol.DNS_SERVER_PORT):
+	var host_domain = ClientPool.extract_domain_from_url(gurt_url)
+
+	var client = ClientPool.get_or_create_gurt_client(host_domain)
+	if client == null:
 		NetworkManager.fail_request(network_request.id, "Failed to create GURT client")
-		return ""
-	
-	var host_domain = gurt_url
-	if host_domain.begins_with("gurt://"):
-		host_domain = host_domain.substr(7)
-	var slash_pos = host_domain.find("/")
-	if slash_pos != -1:
-		host_domain = host_domain.substr(0, slash_pos)
+		return PackedByteArray() if as_binary else ""
 	
 	var response = client.request(gurt_url, {
 		"method": "GET",
 		"headers": {"Host": host_domain}
 	})
-	client.disconnect()
 	
 	if not response or not response.is_success:
 		var error_msg = "Failed to load GURT resource"

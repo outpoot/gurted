@@ -139,3 +139,53 @@ func add_completed_request(url: String, method: String, is_from_lua: bool, statu
 
 	if dev_tools_network_tab:
 		dev_tools_network_tab.add_network_request(request)
+
+func start_websocket_connection(url: String, websocket_id: String) -> NetworkRequest:
+	var request = NetworkRequest.create_websocket_connection(url, websocket_id)
+	active_requests[request.id] = request
+	all_requests.append(request)
+	
+	if dev_tools_network_tab:
+		dev_tools_network_tab.add_network_request(request)
+	
+	request_started.emit(request)
+	return request
+
+func add_websocket_message(url: String, websocket_id: String, direction: String, message: String):
+	var connection_request: NetworkRequest = null
+	
+	for request in active_requests.values():
+		if request.websocket_id == websocket_id and request.websocket_event_type == "connection":
+			connection_request = request
+			break
+	
+	if not connection_request:
+		for request in all_requests:
+			if request.websocket_id == websocket_id and request.websocket_event_type == "connection":
+				connection_request = request
+				break
+	
+	if connection_request:
+		connection_request.add_websocket_message(direction, message)
+		
+		if dev_tools_network_tab:
+			dev_tools_network_tab.update_request_item(connection_request)
+		
+		request_completed.emit(connection_request)
+
+func update_websocket_connection(websocket_id: String, status: String, status_code: int = 200, status_text: String = "OK"):
+	for request in active_requests.values():
+		if request.websocket_id == websocket_id and request.websocket_event_type == "connection":
+			request.update_websocket_status(status, status_code, status_text)
+			
+			if status in ["closed", "error"]:
+				active_requests.erase(request.id)
+			
+			if dev_tools_network_tab:
+				dev_tools_network_tab.update_request_item(request)
+			
+			if request.status == NetworkRequest.RequestStatus.SUCCESS:
+				request_completed.emit(request)
+			else:
+				request_failed.emit(request)
+			break

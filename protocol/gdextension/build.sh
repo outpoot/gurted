@@ -33,7 +33,7 @@ while [[ $# -gt 0 ]]; do
             echo ""
             echo "Options:"
             echo "  -t, --target TARGET      Build target (debug|release) [default: release]"
-            echo "  -p, --platform PLATFORM Target platform (windows|linux|macos|current)"
+            echo "  -p, --platform PLATFORM Target platform (windows|linux|macos|macos-intel|current)"
             echo "  -h, --help              Show this help message"
             echo ""
             exit 0
@@ -82,6 +82,10 @@ case $PLATFORM in
         LIB_NAME="libgurt_godot.so"
         ;;
     macos)
+        RUST_TARGET="aarch64-apple-darwin"
+        LIB_NAME="libgurt_godot.dylib"
+        ;;
+    macos-intel)
         RUST_TARGET="x86_64-apple-darwin"
         LIB_NAME="libgurt_godot.dylib"
         ;;

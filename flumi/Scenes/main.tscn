@@ -122,6 +122,7 @@ layout_mode = 2
 [node name="Popup" type="Button" parent="VBoxContainer/TabContainer"]
 custom_minimum_size = Vector2(50, 0)
 layout_mode = 2
+focus_mode = 1
 theme_override_styles/focus = SubResource("StyleBoxEmpty_344ge")
 theme_override_styles/hover = SubResource("StyleBoxFlat_hptm8")
 theme_override_styles/pressed = SubResource("StyleBoxFlat_6bp64")
@@ -138,6 +139,7 @@ layout_mode = 2
 [node name="NewTabButton" type="Button" parent="VBoxContainer/TabContainer"]
 custom_minimum_size = Vector2(50, 0)
 layout_mode = 2
+focus_mode = 1
 theme_override_styles/focus = SubResource("StyleBoxEmpty_344ge")
 theme_override_styles/hover = SubResource("StyleBoxFlat_ynf5e")
 theme_override_styles/pressed = SubResource("StyleBoxFlat_6bp64")
@@ -165,6 +167,7 @@ layout_mode = 2
 [node name="BackButton" type="Button" parent="VBoxContainer/HBoxContainer"]
 custom_minimum_size = Vector2(45, 0)
 layout_mode = 2
+focus_mode = 1
 theme_override_styles/focus = SubResource("StyleBoxEmpty_d1ilt")
 theme_override_styles/hover = SubResource("StyleBoxFlat_fdnlq")
 theme_override_styles/pressed = SubResource("StyleBoxFlat_d1ilt")
@@ -175,6 +178,7 @@ icon_alignment = 1
 [node name="ForwardButton" type="Button" parent="VBoxContainer/HBoxContainer"]
 custom_minimum_size = Vector2(45, 0)
 layout_mode = 2
+focus_mode = 1
 theme_override_styles/focus = SubResource("StyleBoxEmpty_d1ilt")
 theme_override_styles/hover = SubResource("StyleBoxFlat_fdnlq")
 theme_override_styles/pressed = SubResource("StyleBoxFlat_d1ilt")
@@ -185,6 +189,7 @@ icon_alignment = 1
 [node name="RefreshButton" type="Button" parent="VBoxContainer/HBoxContainer"]
 custom_minimum_size = Vector2(45, 0)
 layout_mode = 2
+focus_mode = 1
 theme_override_styles/focus = SubResource("StyleBoxEmpty_d1ilt")
 theme_override_styles/hover = SubResource("StyleBoxFlat_fdnlq")
 theme_override_styles/pressed = SubResource("StyleBoxFlat_d1ilt")
@@ -216,6 +221,7 @@ stretch_mode = 5
 [node name="OptionsButton" type="Button" parent="VBoxContainer/HBoxContainer"]
 custom_minimum_size = Vector2(45, 0)
 layout_mode = 2
+focus_mode = 1
 theme_override_styles/focus = SubResource("StyleBoxEmpty_d1ilt")
 theme_override_styles/hover = SubResource("StyleBoxFlat_fdnlq")
 theme_override_styles/pressed = SubResource("StyleBoxFlat_d1ilt")
