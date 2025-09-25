@@ -262,3 +262,4 @@ GURT is implemented in Rust with the following components:
 - **Protocol Library**: Core protocol implementation, reusable as a Rust crate
 - **CLI Tool (Gurty)**: Server setup and management
 - **Godot Extension**: Browser integration for Flumi
+- **gurt.js**: A Node.js package implementation for backend development [documentation](https://www.npmjs.com/package/gurtjs)
