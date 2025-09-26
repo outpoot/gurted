@@ -142,11 +142,9 @@ func fetch_gurt_content_async(gurt_url: String, tab: Tab, original_url: String, 
 	main_navigation_request.type = NetworkRequest.RequestType.DOC
 	network_start_time = Time.get_ticks_msec()
 	
-	# Use HTTPRequest for async operation instead of blocking thread
 	var http_request = HTTPRequest.new()
 	add_child(http_request)
 	
-	# Store request info for callback
 	var request_info = {
 		"tab": tab,
 		"original_url": original_url,
@@ -155,20 +153,16 @@ func fetch_gurt_content_async(gurt_url: String, tab: Tab, original_url: String, 
 		"http_request": http_request
 	}
 	
-	# Connect to completion signal
 	http_request.request_completed.connect(_on_gurt_request_completed.bind(request_info))
 	
-	# Start async GURT request
 	_start_async_gurt_request(http_request, gurt_url)
 
 func _start_async_gurt_request(http_request: HTTPRequest, gurt_url: String) -> void:
-	# For now, fall back to threaded request but with proper async handling
 	var thread = Thread.new()
 	var request_data = {"gurt_url": gurt_url, "http_request": http_request}
 	
 	thread.start(_perform_gurt_request_threaded.bind(request_data))
 	
-	# Use a timer instead of busy waiting to check completion
 	var timer = Timer.new()
 	timer.wait_time = 0.016  # ~60 FPS check rate
 	timer.timeout.connect(_check_thread_completion.bind(thread, http_request))
@@ -178,10 +172,8 @@ func _start_async_gurt_request(http_request: HTTPRequest, gurt_url: String) -> v
 func _check_thread_completion(thread: Thread, http_request: HTTPRequest) -> void:
 	if not thread.is_alive():
 		var result = thread.wait_to_finish()
-		# Emit the signal manually to trigger completion handling
 		http_request.request_completed.emit(200 if result.success else 400, 200 if result.success else 400, PackedStringArray(), result.get("html_bytes", PackedByteArray()))
 		
-		# Clean up timer
 		for child in get_children():
 			if child is Timer and child.timeout.is_connected(_check_thread_completion):
 				child.queue_free()
@@ -217,11 +209,9 @@ func _on_gurt_request_completed(result_code: int, response_code: int, headers: P
 	var gurt_url = request_info.gurt_url
 	var add_to_history = request_info.add_to_history
 	
-	# Clean up HTTP request
 	if is_instance_valid(http_request):
 		http_request.queue_free()
 	
-	# Handle the result
 	if result_code == 200:
 		var result = {"success": true, "html_bytes": body}
 		_handle_gurt_result(result, tab, original_url, gurt_url, add_to_history)
@@ -358,7 +348,6 @@ func render_content(html_bytes: PackedByteArray, target_tab: Tab = null) -> void
 	else:
 		NetworkManager.clear_all_requests()
 	
-	# Use target_tab if provided, otherwise fallback to active tab
 	var rendering_tab = target_tab if target_tab else get_active_tab()
 	var target_container: Control
 	
@@ -373,7 +362,6 @@ func render_content(html_bytes: PackedByteArray, target_tab: Tab = null) -> void
 
 	_reset_render_yield_state()
 	
-	# Critical fix for layout corruption: ensure proper visibility during rendering
 	var was_tab_visible = false
 	var active_tab = get_active_tab()
 	var is_rendering_active_tab = (rendering_tab == active_tab)
@@ -382,13 +370,7 @@ func render_content(html_bytes: PackedByteArray, target_tab: Tab = null) -> void
 	if rendering_tab and not is_rendering_active_tab and rendering_tab.background_panel:
 		was_tab_visible = rendering_tab.background_panel.visible
 		if not was_tab_visible:
-			var active_container = get_active_website_container()
-			if active_container and active_container.size != Vector2.ZERO:
-				rendering_tab.website_container.size = active_container.size
-				rendering_tab.website_container.custom_minimum_size = active_container.size
-				if rendering_tab.background_panel:
-					rendering_tab.background_panel.size = active_container.get_parent().size
-					rendering_tab.background_panel.custom_minimum_size = active_container.get_parent().size
+			_copy_active_container_sizes_to_tab(rendering_tab)
 			needs_visibility_restore = true
 	
 	if rendering_tab:
@@ -438,13 +420,13 @@ func render_content(html_bytes: PackedByteArray, target_tab: Tab = null) -> void
 		if existing_overlay:
 			existing_overlay.queue_free()
 	
-	if target_container.get_parent() and target_container.get_parent().name == "BodyMarginContainer":
-		var body_margin_container = target_container.get_parent()
-		var scroll_container = body_margin_container.get_parent()
-		if scroll_container:
-			body_margin_container.remove_child(target_container)
-			scroll_container.remove_child(body_margin_container)
-			body_margin_container.queue_free()
+	var target_parent = target_container.get_parent()
+	if target_parent and target_parent.name == "BodyMarginContainer":
+		var scroll_container = target_parent.get_parent()
+		if scroll_container and target_container.get_parent() == target_parent and target_parent.get_parent() == scroll_container:
+			target_parent.remove_child(target_container)
+			scroll_container.remove_child(target_parent)
+			target_parent.queue_free()
 			scroll_container.add_child(target_container)
 	
 	for child in target_container.get_children():
@@ -489,7 +471,6 @@ func render_content(html_bytes: PackedByteArray, target_tab: Tab = null) -> void
 	if body:
 		var background_panel = rendering_tab.background_panel
 		
-		# Ensure container has proper dimensions for style calculations
 		if needs_visibility_restore:
 			target_container.call_deferred("queue_redraw")
 		
@@ -592,19 +573,31 @@ func render_content(html_bytes: PackedByteArray, target_tab: Tab = null) -> void
 	rendering_tab.current_url = current_domain
 	rendering_tab.has_content = true
 	
-	if needs_visibility_restore and rendering_tab and rendering_tab.website_container:
-		rendering_tab.website_container.size = Vector2.ZERO
-		rendering_tab.website_container.custom_minimum_size = Vector2.ZERO
-		if rendering_tab.background_panel:
-			rendering_tab.background_panel.size = Vector2.ZERO  
-			rendering_tab.background_panel.custom_minimum_size = Vector2.ZERO
+	if needs_visibility_restore and rendering_tab:
+		_reset_tab_container_sizes(rendering_tab)
 
+
+func _copy_active_container_sizes_to_tab(tab: Tab) -> void:
+	var active_container = get_active_website_container()
+	if active_container and active_container.size != Vector2.ZERO:
+		tab.website_container.size = active_container.size
+		tab.website_container.custom_minimum_size = active_container.size
+		if tab.background_panel:
+			tab.background_panel.size = active_container.get_parent().size
+			tab.background_panel.custom_minimum_size = active_container.get_parent().size
+
+func _reset_tab_container_sizes(tab: Tab) -> void:
+	if tab.website_container:
+		tab.website_container.size = Vector2.ZERO
+		tab.website_container.custom_minimum_size = Vector2.ZERO
+	if tab.background_panel:
+		tab.background_panel.size = Vector2.ZERO
+		tab.background_panel.custom_minimum_size = Vector2.ZERO
 
 func _force_layout_update(container: Control) -> void:
 	if not container:
 		return
 		
-	# Recursively force layout update on all flex containers and layout nodes
 	_force_layout_update_recursive(container)
 
 func _force_layout_update_recursive(node: Control) -> void:

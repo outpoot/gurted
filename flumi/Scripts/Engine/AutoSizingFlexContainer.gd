@@ -168,13 +168,9 @@ func _should_include_child_in_layout(c: Control) -> bool:
 	if not is_instance_valid(c):
 		return false
 	
-	# Skip elements explicitly hidden (e.g., display: none) or marked top-level
 	if not c.visible or not c.is_inside_tree():
 		return false
 	
-	# When rendering background tabs, ancestors may be invisible which makes
-	# is_visible_in_tree() false even though the element should still participate.
-	# Relying on the node's own visibility keeps the layout intact in that case.
 	return true
 
 func _is_inside_background_container() -> bool:

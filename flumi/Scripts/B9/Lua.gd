@@ -17,7 +17,7 @@ class EventSubscription:
 	var wrapper_func: Callable
 
 var dom_parser: HTMLParser
-var associated_tab: Tab = null  # The tab this LuaAPI belongs to
+var associated_tab: Tab = null
 var event_subscriptions: Dictionary = {}
 var next_subscription_id: int = 1
 var next_callback_ref: int = 1
@@ -82,7 +82,6 @@ func _gurt_select_all_handler(vm: LuauVM) -> int:
 	for element in elements:
 		var element_id = get_or_assign_element_id(element)
 		
-		# Create element wrapper
 		vm.lua_newtable()
 		vm.lua_pushstring(element_id)
 		vm.lua_setfield(-2, "_element_id")
@@ -91,7 +90,6 @@ func _gurt_select_all_handler(vm: LuauVM) -> int:
 		
 		LuaDOMUtils.add_element_methods(vm, self)
 		
-		# Add to array at index
 		vm.lua_rawseti(-2, index)
 		index += 1
 	
@@ -107,20 +105,16 @@ func _gurt_create_handler(vm: LuauVM) -> int:
 	
 	var element = HTMLParser.HTMLElement.new(tag_name)
 	
-	# Apply options as attributes and content
 	for key in options:
 		if key == "text":
 			element.text_content = str(options[key])
 		else:
 			element.attributes[str(key)] = str(options[key])
 	
-	# Add to parser's element collection first
 	dom_parser.parse_result.all_elements.append(element)
 	
-	# Get or assign stable ID
 	var unique_id = get_or_assign_element_id(element)
 	
-	# Create Lua element wrapper with methods
 	vm.lua_newtable()
 	vm.lua_pushstring(unique_id)
 	vm.lua_setfield(-2, "_element_id")
@@ -264,14 +258,11 @@ func _element_on_event_handler(vm: LuauVM) -> int:
 	var element_id: String = vm.lua_tostring(-1)
 	vm.lua_pop(1)
 	
-	# Create a proper subscription with real ID
 	var subscription = _create_subscription(vm, element_id, event_name)
 	event_subscriptions[subscription.id] = subscription
 	
-	# Register the event on main thread
 	call_deferred("_register_event_on_main_thread", element_id, event_name, subscription.callback_ref, subscription.id)
 	
-	# Return subscription with proper unsubscribe method
 	vm.lua_newtable()
 	vm.lua_pushinteger(subscription.id)
 	vm.lua_setfield(-2, "_subscription_id")
@@ -348,13 +339,13 @@ func _handle_subscription_result(vm: LuauVM, subscription: EventSubscription, su
 
 # Event callbacks
 func _on_event_triggered(subscription: EventSubscription) -> void:
-	if not event_subscriptions.has(subscription.id):
+	if not _is_subscription_valid(subscription):
 		return
 	
 	_execute_lua_callback(subscription)
 
 func _on_gui_input_click(event: InputEvent, subscription: EventSubscription) -> void:
-	if not event_subscriptions.has(subscription.id):
+	if not _is_subscription_valid(subscription):
 		return
 	
 	if event is InputEventMouseButton:
@@ -367,7 +358,6 @@ func _on_gui_input_mouse_universal(event: InputEvent, signal_node: Node) -> void
 	if event is InputEventMouseButton:
 		var mouse_event = event as InputEventMouseButton
 		if mouse_event.button_index == MOUSE_BUTTON_LEFT:
-			# Find all subscriptions for this node with mouse events
 			for subscription_id in event_subscriptions:
 				var subscription = event_subscriptions[subscription_id]
 				if subscription.connected_node == signal_node and subscription.connected_signal == "gui_input_mouse":
@@ -410,7 +400,7 @@ func _on_gui_input_keys_universal(event: InputEvent, signal_node: Node) -> void:
 
 # Event callback handlers
 func _on_gui_input_mousemove(event: InputEvent, subscription: EventSubscription) -> void:
-	if not event_subscriptions.has(subscription.id):
+	if not _is_subscription_valid(subscription):
 		return
 	
 	if event is InputEventMouseMotion:
@@ -418,7 +408,7 @@ func _on_gui_input_mousemove(event: InputEvent, subscription: EventSubscription)
 		_handle_mousemove_event(mouse_event, subscription)
 
 func _on_focus_gui_input(event: InputEvent, subscription: EventSubscription) -> void:
-	if not event_subscriptions.has(subscription.id):
+	if not _is_subscription_valid(subscription):
 		return
 	
 	if event is InputEventMouseButton:
@@ -437,17 +427,19 @@ func _on_body_mouse_enter(subscription: EventSubscription) -> void:
 func _on_body_mouse_exit(subscription: EventSubscription) -> void:
 	_handle_body_event(subscription, "mouseexit", {})
 
+func _is_subscription_valid(subscription: EventSubscription) -> bool:
+	return event_subscriptions.has(subscription.id)
+
 func _execute_lua_callback(subscription: EventSubscription, args: Array = []) -> void:
 	threaded_vm.execute_callback_async(subscription.callback_ref, args)
 
 func _execute_input_event_callback(subscription: EventSubscription, event_data: Dictionary) -> void:
-	if not event_subscriptions.has(subscription.id):
+	if not _is_subscription_valid(subscription):
 		return
 	_execute_lua_callback(subscription, [event_data])
 
 # Global input processing
 func _input(event: InputEvent) -> void:
-	# Only process events if this LuaAPI belongs to the active tab
 	if not _is_tab_active():
 		return
 		
@@ -551,30 +543,25 @@ func _handle_mousemove_event(mouse_event: InputEventMouseMotion, subscription: E
 	}
 	_execute_lua_callback(subscription, [mouse_info])
 
-# Check if this LuaAPI's associated tab is currently active
 func _is_tab_active() -> bool:
 	if not associated_tab:
-		return true  # If no tab association, allow events (fallback behavior)
+		return true
 	
 	var main_scene = Engine.get_main_loop().current_scene
 	if main_scene and main_scene.has_method("get_active_tab"):
-		var active_tab = main_scene.get_active_tab()
-		return active_tab == associated_tab
+		return main_scene.get_active_tab() == associated_tab
 	
-	return true  # Fallback to allowing events if we can't determine active tab
+	return true
 
-# Trigger focus events for tab switching (focusin/focusout on body)
-func _trigger_tab_focus_event(event_name: String) -> void:
+func _execute_body_event_callbacks(event_name: String, event_data: Dictionary = {}) -> void:
 	for subscription_id in event_subscriptions:
 		var subscription = event_subscriptions[subscription_id]
 		if subscription.element_id == "body" and subscription.event_name == event_name:
-			_execute_lua_callback(subscription, [{}])
+			_execute_lua_callback(subscription, [event_data])
 
 func _get_body_container() -> Control:
-	# Try to get body from DOM registry first
 	var body_container = dom_parser.parse_result.dom_nodes.get("body", null)
 	
-	# We fallback to finding the active website container, as it seems theres a bug where body can be null in this context
 	if not body_container:
 		var main_scene = Engine.get_main_loop().current_scene
 		if main_scene and main_scene.has_method("get_active_website_container"):
@@ -597,7 +584,6 @@ func _on_input_focus_lost(subscription: EventSubscription) -> void:
 	if not event_subscriptions.has(subscription.id):
 		return
 	
-	# Get the current text value from the input node
 	var dom_node = dom_parser.parse_result.dom_nodes.get(subscription.element_id, null)
 	if dom_node:
 		var current_text = ""
@@ -626,7 +612,6 @@ func _on_input_item_selected(index: int, subscription: EventSubscription) -> voi
 	if not event_subscriptions.has(subscription.id):
 		return
 	
-	# Get value from OptionButton
 	var dom_node = dom_parser.parse_result.dom_nodes.get(subscription.element_id, null)
 	var value = ""
 	var text = ""
@@ -634,7 +619,6 @@ func _on_input_item_selected(index: int, subscription: EventSubscription) -> voi
 	if dom_node and dom_node is OptionButton:
 		var option_button = dom_node as OptionButton
 		text = option_button.get_item_text(index)
-		# Get actual value attribute (stored as metadata)
 		var metadata = option_button.get_item_metadata(index)
 		value = str(metadata) if metadata != null else text
 	
@@ -648,16 +632,15 @@ func _on_file_selected(file_path: String, subscription: EventSubscription) -> vo
 	var dom_node = dom_parser.parse_result.dom_nodes.get(subscription.element_id, null)
 	
 	if dom_node:
-		var file_container = dom_node.get_parent() # FileContainer (HBoxContainer)
+		var file_container = dom_node.get_parent()
 		if file_container:
-			var input_element = file_container.get_parent() # Input Control
+			var input_element = file_container.get_parent()
 			if input_element and input_element.has_method("get_file_info"):
 				var file_info = input_element.get_file_info()
 				if not file_info.is_empty():
 					_execute_lua_callback(subscription, [file_info])
 					return
 	
-	# Fallback
 	var file_name = file_path.get_file()
 	_execute_lua_callback(subscription, [{"fileName": file_name}])
 
@@ -672,7 +655,6 @@ func _on_form_submit(subscription: EventSubscription) -> void:
 	if not event_subscriptions.has(subscription.id):
 		return
 	
-	# Find parent form
 	var form_data = {}
 	var element = dom_parser.find_by_id(subscription.element_id)
 	if element:
@@ -752,7 +734,6 @@ func get_dom_node(node: Node, purpose: String = "general") -> Node:
 # Main execution function
 func execute_lua_script(code: String, chunk_name: String = "dostring"):
 	if not threaded_vm.lua_thread or not threaded_vm.lua_thread.is_alive():
-		# Start the thread if it's not running
 		threaded_vm.start_lua_thread(dom_parser, self)
 	
 	script_start_time = Time.get_ticks_msec() / 1000.0
@@ -776,7 +757,6 @@ func _on_print_output(message: Dictionary):
 
 func kill_script_execution():
 	threaded_vm.stop_lua_thread()
-	# Restart a fresh thread for future scripts
 	threaded_vm.start_lua_thread(dom_parser, self)
 
 func is_script_hanging() -> bool:
@@ -843,7 +823,6 @@ func _handle_dom_operation(operation: Dictionary):
 			LuaCanvasUtils.handle_canvas_stroke(operation, dom_parser)
 		"canvas_fill":
 			LuaCanvasUtils.handle_canvas_fill(operation, dom_parser)
-		# Transformation operations
 		"canvas_save":
 			LuaCanvasUtils.handle_canvas_save(operation, dom_parser)
 		"canvas_restore":
@@ -858,7 +837,6 @@ func _handle_dom_operation(operation: Dictionary):
 			LuaCanvasUtils.handle_canvas_quadraticCurveTo(operation, dom_parser)
 		"canvas_bezierCurveTo":
 			LuaCanvasUtils.handle_canvas_bezierCurveTo(operation, dom_parser)
-		# Style property operations
 		"canvas_setStrokeStyle":
 			LuaCanvasUtils.handle_canvas_setStrokeStyle(operation, dom_parser)
 		"canvas_setFillStyle":
@@ -883,7 +861,6 @@ func _handle_event_registration(operation: Dictionary):
 	
 	var element_id = get_or_assign_element_id(element)
 	
-	# Create subscription for threaded callback
 	var subscription = EventSubscription.new()
 	subscription.id = next_subscription_id
 	next_subscription_id += 1
@@ -895,7 +872,6 @@ func _handle_event_registration(operation: Dictionary):
 	
 	event_subscriptions[subscription.id] = subscription
 	
-	# Connect to DOM element
 	var dom_node = dom_parser.parse_result.dom_nodes.get(element_id, null)
 	if dom_node:
 		var signal_node = get_dom_node(dom_node, "signal")
@@ -907,7 +883,6 @@ func _handle_text_setting(operation: Dictionary):
 	
 	var element = SelectorUtils.find_first_matching(selector, dom_parser.parse_result.all_elements)
 	if element:
-		# If the element has a DOM node, update it directly without updating text_content
 		var element_id = get_or_assign_element_id(element)
 		var dom_node = dom_parser.parse_result.dom_nodes.get(element_id, null)
 		
@@ -1023,12 +998,10 @@ func _handle_body_event_registration(operation: Dictionary):
 	var callback_ref: int = operation.callback_ref
 	var subscription_id: int = operation.get("subscription_id", -1)
 	
-	# Use provided subscription_id or generate a new one
 	if subscription_id == -1:
 		subscription_id = next_subscription_id
 		next_subscription_id += 1
 	
-	# Create subscription for threaded callback
 	var subscription = EventSubscription.new()
 	subscription.id = subscription_id
 	subscription.element_id = "body"
@@ -1043,7 +1016,6 @@ func _handle_body_event_registration(operation: Dictionary):
 	LuaEventUtils.connect_body_event(event_name, subscription, self)
 
 func _register_event_on_main_thread(element_id: String, event_name: String, callback_ref: int, subscription_id: int = -1):
-	# This runs on the main thread - safe to access DOM nodes
 	var dom_node = dom_parser.parse_result.dom_nodes.get(element_id, null)
 	if not dom_node:
 		var pending_registration = {
@@ -1061,12 +1033,10 @@ func _register_event_on_main_thread(element_id: String, event_name: String, call
 		call_deferred("_process_pending_event_registrations")
 		return
 	
-	# Use provided subscription_id or generate a new one
 	if subscription_id == -1:
 		subscription_id = next_subscription_id
 		next_subscription_id += 1
 	
-	# Create subscription using the threaded VM's callback reference
 	var subscription = EventSubscription.new()
 	subscription.id = subscription_id
 	subscription.element_id = element_id
@@ -1104,13 +1074,11 @@ func _process_pending_event_registrations():
 		call_deferred("_process_pending_event_registrations")
 
 func _unsubscribe_event_on_main_thread(subscription_id: int):
-	# This runs on the main thread - safe to cleanup event subscriptions
 	var subscription = event_subscriptions.get(subscription_id, null)
 	if subscription:
 		LuaEventUtils.disconnect_subscription(subscription, self)
 		event_subscriptions.erase(subscription_id)
 		
-		# Clean up Lua callback reference
 		if subscription.callback_ref and subscription.vm:
 			subscription.vm.lua_pushnil()
 			subscription.vm.lua_rawseti(subscription.vm.LUA_REGISTRYINDEX, subscription.callback_ref)
@@ -1136,7 +1104,6 @@ func _get_element_size_sync(result: Array, element_id: String):
 		result[2] = true # completion flag
 		return
 	
-	# Fallback
 	result[0] = 0.0
 	result[1] = 0.0
 	result[2] = true # completion flag
@@ -1150,7 +1117,6 @@ func _get_element_position_sync(result: Array, element_id: String):
 		result[2] = true # completion flag
 		return
 	
-	# Fallback
 	result[0] = 0.0
 	result[1] = 0.0
 	result[2] = true # completion flag
