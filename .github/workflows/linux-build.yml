@@ -28,6 +28,7 @@ jobs:
 
       - name: Export project (Linux)
         run: |
+          mkdir builds
           cd flumi
           ../godot/Godot_v4.4-stable_linux.x86_64 --headless --export-release "Linux" ../builds/Flumi.x86_64
       - name: Verify binary exists
