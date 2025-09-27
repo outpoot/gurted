@@ -1,0 +1,47 @@
+name: Build for Linux
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-24.04
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Get Godot
+        run: |
+          wget -O godot.zip https://github.com/godotengine/godot-builds/releases/download/4.4-stable/Godot_v4.4-stable_linux.x86_64.zip
+          unzip godot.zip -d godot
+          chmod +x godot/Godot_v4.4-stable_linux.x86_64
+
+      - name: Get Export Templates
+        run: |
+          wget -O templates.tpz https://github.com/godotengine/godot-builds/releases/download/4.4-stable/Godot_v4.4-stable_export_templates.tpz
+          mkdir -p ~/.local/share/godot/export_templates/4.4.stable
+          tar -xvf templates.tpz -C ~/.local/share/godot/export_templates/4.4.stable --strip-components=1
+
+      - name: Export project (Linux)
+        run: |
+          cd flumi
+          ../godot/Godot_v4.4-stable_linux.x86_64 --headless --verbose --export-release "Linux"
+      - name: Verify binary exists
+        run: |
+          if [ ! -f ../build/Flumi.x86_64 ]; then
+            echo "we failed fuck"
+            exit 1
+          fi
+          echo "exported"
+  package:
+    name: Create packages
+    runs-on: ubuntu-24.04
+
+    # we will fill this in later
+    steps:
+      - name: filler
+        run: |
+          echo hello
+      
