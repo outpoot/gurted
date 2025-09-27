@@ -44,17 +44,19 @@ jobs:
           echo "exported! we can move on"
       - name: Set up directory structure
         run: |
-          cd flumi-pkg
-          mkdir -p usr/{bin, lib/flumi}
-          cp ../builds/*.so ./usr/lib/flumi
-          cp ../builds/Flumi.x86_64 ./usr/bin
-          patchelf --set-rpath '$ORIGIN/../lib/flumi' Flumi.x86_64
+          mkdir -p flumi-pkg/usr/{bin,lib/flumi}
+          cp builds/*.so flumi-pkg/usr/lib/flumi/
+          cp builds/Flumi.x86_64 flumi-pkg/usr/bin/
+          patchelf --set-rpath '$ORIGIN/../lib/flumi' flumi-pkg/usr/bin/Flumi.x86_64
+
       - name: Build package
         run: |
           dpkg-deb -b flumi-pkg
+
       - name: Upload deb
         uses: actions/upload-artifact@v4.6.2
         with:
           name: Package
           path: ./flumi-pkg.deb
+
       
