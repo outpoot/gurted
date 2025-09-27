@@ -21,8 +21,7 @@ jobs:
       - name: Get Export Templates
         run: |
           wget -O templates.tpz https://github.com/godotengine/godot-builds/releases/download/4.4-stable/Godot_v4.4-stable_export_templates.tpz
-          mkdir -p ~/.local/share/godot/export_templates/4.4.stable
-          tar -xvf templates.tpz -C ~/.local/share/godot/export_templates/4.4.stable --strip-components=1
+          ../godot/Godot_v4.4-stable_x11.64 --headless --install-export-template templates.tpz
 
       - name: Export project (Linux)
         run: |
