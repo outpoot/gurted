@@ -1,0 +1,71 @@
+name: Build Flumi
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  release:
+    types: [ published ]
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            preset: Linux
+            output_name: Flumi-Linux-x86_64
+          - os: windows-latest
+            preset: "Windows Desktop"
+            output_name: Flumi-Windows-x86_64
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Setup Godot
+      uses: GodotTools/godot-setup@v1.0.3
+      with:
+        godot-version: "4.2.2"
+        godot-platform: ${{ matrix.preset == 'Linux' && 'linux' || 'windows' }}
+
+    - name: Create export directory
+      run: |
+        mkdir -p dist
+        
+    - name: Export project
+      run: |
+        if [ "${{ matrix.preset }}" = "Linux" ]; then
+          godot --headless --export-release "${{ matrix.preset }}" dist/${{ matrix.output_name }}.x86_64
+        else
+          godot --headless --export-release "${{ matrix.preset }}" dist/${{ matrix.output_name }}.exe
+        fi
+
+    - name: Create archive
+      run: |
+        if [ "${{ matrix.preset }}" = "Linux" ]; then
+          cd dist
+          tar -czf ${{ matrix.output_name }}.tar.gz ${{ matrix.output_name }}.x86_64
+          cd ..
+        else
+          cd dist
+          powershell Compress-Archive -Path ${{ matrix.output_name }}.exe -DestinationPath ${{ matrix.output_name }}.zip
+          cd ..
+        fi
+
+    - name: Upload Linux artifact
+      if: matrix.preset == 'Linux'
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ matrix.output_name }}
+        path: dist/${{ matrix.output_name }}.tar.gz
+        retention-days: 30
+
+    - name: Upload Windows artifact
+      if: matrix.preset == 'Windows Desktop'
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ matrix.output_name }}
+        path: dist/${{ matrix.output_name }}.zip
+        retention-days: 30
