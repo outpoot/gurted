@@ -21,19 +21,19 @@ jobs:
       - name: Get Export Templates
         run: |
           wget -O templates.tpz https://github.com/godotengine/godot-builds/releases/download/4.4-stable/Godot_v4.4-stable_export_templates.tpz
-          ../godot/Godot_v4.4-stable_x86.64 --headless --install-export-template templates.tpz
+          ./godot/Godot_v4.4-stable_x86.64 --headless --install-export-template templates.tpz
 
       - name: Export project (Linux)
         run: |
           cd flumi
-          ./godot/Godot_v4.4-stable_linux.x86_64 --headless --verbose --export-release "Linux"
+          ../godot/Godot_v4.4-stable_linux.x86_64 --headless --verbose --export-release "Linux"
       - name: Verify binary exists
         run: |
           if [ ! -f ../build/Flumi.x86_64 ]; then
-            echo "we failed fuck"
+            echo "we failed"
             exit 1
           fi
-          echo "exported"
+          echo "exported! we can move on"
   package:
     name: Create packages
     runs-on: ubuntu-24.04
