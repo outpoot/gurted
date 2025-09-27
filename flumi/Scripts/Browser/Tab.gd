@@ -4,6 +4,7 @@ extends Control
 signal tab_pressed
 signal tab_closed
 signal content_updated
+signal url_changed
 
 @onready var gradient_texture: TextureRect = %GradientTexture
 @onready var button: Button = %Button
@@ -314,3 +315,8 @@ func get_current_history_url() -> String:
 	if history_index >= 0 and history_index < navigation_history.size():
 		return navigation_history[history_index]
 	return ""
+
+func set_current_url(new_url: String) -> void:
+	if current_url != new_url:
+		current_url = new_url
+		url_changed.emit()

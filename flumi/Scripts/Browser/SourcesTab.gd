@@ -10,8 +10,10 @@ extends HSplitContainer
 
 var current_tab: Tab = null
 var current_parser: HTMLParser = null
-var file_resources: Dictionary = {}
 var selected_file: Dictionary = {}
+var last_update_url: String = ""
+var last_update_count: int = 0
+var tab_network_requests: Dictionary = {}  # Store requests per tab
 
 func _ready():
 	file_tree.item_selected.connect(_on_file_selected)
@@ -24,20 +26,13 @@ func _ready():
 	preview_audio.stop()
 	preview_label.visible = true
 	preview_label.text = "Select a file to preview"
-	
-	# Connect to network manager signals
-	NetworkManager.request_completed.connect(_on_network_request_completed)
-	
-	# Get existing requests
-	for request in NetworkManager.get_all_requests():
-		_on_network_request_completed(request)
 
 func set_current_tab(tab: Tab):
-	if current_tab and current_tab != tab:
-		file_resources.clear()
-	
 	if current_tab:
 		disconnect_tab_signals()
+	
+	last_update_url = ""
+	last_update_count = -1
 	
 	current_tab = tab
 	if tab and tab.lua_apis.size() > 0:
@@ -54,6 +49,8 @@ func connect_tab_signals():
 			current_tab.content_updated.connect(_on_content_updated)
 		if current_tab.has_signal("tab_pressed"):
 			current_tab.tab_pressed.connect(_on_tab_pressed)
+		if current_tab.has_signal("url_changed"):
+			current_tab.url_changed.connect(_on_url_changed)
 
 func disconnect_tab_signals():
 	if current_tab:
@@ -61,12 +58,14 @@ func disconnect_tab_signals():
 			current_tab.content_updated.disconnect(_on_content_updated)
 		if current_tab.has_signal("tab_pressed"):
 			current_tab.tab_pressed.disconnect(_on_tab_pressed)
-
-func disconnect_network_signals():
-	if NetworkManager.request_completed.is_connected(_on_network_request_completed):
-		NetworkManager.request_completed.disconnect(_on_network_request_completed)
+		if current_tab.has_signal("url_changed"):
+			current_tab.url_changed.disconnect(_on_url_changed)
 
 func _on_content_updated():
+	if current_tab:
+		var tab_id = str(current_tab.get_instance_id())
+		var current_requests = NetworkManager.get_all_requests()
+		tab_network_requests[tab_id] = current_requests.duplicate()
 	update_file_tree()
 
 func _on_tab_pressed():
@@ -74,31 +73,15 @@ func _on_tab_pressed():
 		current_parser = current_tab.lua_apis[0].dom_parser
 		update_file_tree()
 
-func refresh_sources():
+func _on_url_changed():
+	last_update_url = ""
+	last_update_count = -1
 	update_file_tree()
 
 func _on_visibility_changed():
-	if visible:
-		refresh_sources()
-
-func _on_network_request_completed(request: NetworkRequest):
-	if not request:
-		return
-	
-	var file_info = {
-		"name": request.name,
-		"url": request.url,
-		"type": get_resource_type_from_request(request),
-		"content": request.response_body if request.response_body else "",
-		"size": request.size,
-		"status": request.status_code,
-		"mime_type": request.mime_type,
-		"request": request
-	}
-	
-	var file_key = request.url
-	file_resources[file_key] = file_info
-	update_file_tree()
+	if visible and current_tab:
+		if file_tree.get_root() == null:
+			update_file_tree()
 
 func get_resource_type_from_request(request: NetworkRequest) -> String:
 	match request.type:
@@ -133,66 +116,94 @@ func get_resource_type_from_request(request: NetworkRequest) -> String:
 			return "other"
 
 func update_file_tree():
-	clear_file_tree()
-	
-	if not current_parser or not current_parser.parse_result:
-		var root = file_tree.create_item()
-		root.set_text(0, "Resources")
-		root.set_icon(0, get_icon_for_type("html"))
-		add_network_resources_to_tree(root)
-		root.set_collapsed(false)
+	if not current_tab:
+		clear_file_tree()
 		return
 	
+	var current_url = current_tab.current_url.get_file() if not current_tab.current_url.is_empty() else ""
+	var tab_id = str(current_tab.get_instance_id())
+	
+	var network_requests: Array[NetworkRequest] = []
+	if tab_network_requests.has(tab_id):
+		network_requests = tab_network_requests[tab_id]
+	else:
+		network_requests = NetworkManager.get_all_requests()
+	
+	var current_count = network_requests.size()
+	
+	if file_tree.get_root() == null or last_update_count == -1:
+		last_update_url = current_url
+		last_update_count = current_count
+		build_file_tree_with_requests(current_url, network_requests)
+		return
+	
+	if last_update_url != current_url or last_update_count != current_count:
+		last_update_url = current_url
+		last_update_count = current_count
+		build_file_tree_with_requests(current_url, network_requests)
+
+func build_file_tree(title: String):
+	var network_requests = NetworkManager.get_all_requests()
+	build_file_tree_with_requests(title, network_requests)
+
+func build_file_tree_with_requests(title: String, network_requests: Array[NetworkRequest]):
+	clear_file_tree()
+	
 	var root = file_tree.create_item()
-	root.set_text(0, current_tab.current_url.get_file() if current_tab else "Document")
+	var display_title = "Resources"
+	if not title.is_empty():
+		display_title = title
+	root.set_text(0, display_title)
 	root.set_icon(0, get_icon_for_type("html"))
 	
-	add_inline_resources_to_tree(root)
-	add_network_resources_to_tree(root)
-	
+	add_network_resources_to_tree_with_requests(root, network_requests)
 	root.set_collapsed(false)
 
-func add_inline_resources_to_tree(root: TreeItem):
-	# Don't show inline CSS or JS files anymore
-	# Only show the main HTML document
-	pass
-
 func add_network_resources_to_tree(root: TreeItem):
+	var network_requests = NetworkManager.get_all_requests()
+	add_network_resources_to_tree_with_requests(root, network_requests)
+
+func add_network_resources_to_tree_with_requests(root: TreeItem, network_requests: Array[NetworkRequest]):
 	var resources_by_type = {}
-	var current_domain = get_current_domain()
 	
-	for file_key in file_resources.keys():
-		var resource = file_resources[file_key]
-		var url = resource.get("url", "")
-		
-		# Only show resources from current domain
-		if not is_from_current_domain(url, current_domain):
-			continue
-			
-		var type = resource.get("type", "other")
+	for request in network_requests:
+		var type = get_resource_type_from_request(request)
 		if not resources_by_type.has(type):
 			resources_by_type[type] = []
-		resources_by_type[type].append(resource)
+		
+		var file_info = {
+			"name": request.name,
+			"url": request.url,
+			"type": type,
+			"content": request.response_body if request.response_body else "",
+			"size": request.size,
+			"status": request.status_code,
+			"mime_type": request.mime_type,
+			"request": request
+		}
+		resources_by_type[type].append(file_info)
 	
-	# Add HTML Documents first (including main document)
 	var html_item = file_tree.create_item(root)
 	html_item.set_text(0, "HTML Documents")
 	html_item.set_icon(0, get_icon_for_type("html"))
 	
-	# Add main document
-	var main_doc_item = file_tree.create_item(html_item)
-	main_doc_item.set_text(0, current_tab.current_url.get_file() if current_tab else "Document")
-	main_doc_item.set_icon(0, get_icon_for_type("html"))
-	main_doc_item.set_metadata(0, {
-		"type": "html",
-		"content": get_full_html_content(),
-		"url": current_tab.current_url if current_tab else ""
-	})
+	if resources_by_type.has("html"):
+		for resource in resources_by_type["html"]:
+			var resource_item = file_tree.create_item(html_item)
+			var name = resource.get("name", "Unknown")
+			var size = resource.get("size", 0)
+			var status = resource.get("status", 0)
+			
+			var display_text = name
+			if size > 0:
+				display_text += " (" + format_file_size(size) + ")"
+			if status > 0:
+				display_text += " [" + str(status) + "]"
+			
+			resource_item.set_text(0, display_text)
+			resource_item.set_icon(0, get_icon_for_type("html"))
+			resource_item.set_metadata(0, resource)
 	
-	# Don't add other HTML documents - we already have the main one
-	# This prevents showing duplicate HTML documents
-	
-	# Add other categories in specific order
 	var category_order = ["script", "image", "other"]
 	for type in category_order:
 		if resources_by_type.has(type) and resources_by_type[type].size() > 0:
@@ -204,7 +215,6 @@ func add_network_resources_to_tree(root: TreeItem):
 			for resource in resources_by_type[type]:
 				var resource_item = file_tree.create_item(type_item)
 				var name = resource.get("name", "Unknown")
-				var url = resource.get("url", "")
 				var size = resource.get("size", 0)
 				var status = resource.get("status", 0)
 				
@@ -218,49 +228,6 @@ func add_network_resources_to_tree(root: TreeItem):
 				resource_item.set_icon(0, get_icon_for_type(type))
 				resource_item.set_metadata(0, resource)
 
-func get_current_domain() -> String:
-	if current_tab and current_tab.current_url:
-		var url = current_tab.current_url
-		if url.begins_with("gurt://"):
-			return "gurt://" + url.split("/")[2] if url.split("/").size() > 2 else url
-		elif url.begins_with("http://") or url.begins_with("https://"):
-			return url.split("/")[0] + "//" + url.split("/")[2] if url.split("/").size() > 2 else url
-	return ""
-
-func is_from_current_domain(url: String, current_domain: String) -> bool:
-	if current_domain.is_empty():
-		return true
-	
-	# Filter out internal Flumi resources
-	if url.begins_with("res://") or url.begins_with("user://"):
-		return false
-	
-	# Filter out common browser internal resources
-	var internal_patterns = [
-		"256px-Skull_danger.svg.png",
-		"295128.png", 
-		"126472.png",
-		"46-512.png",
-		"logo.png",
-		"gronk2.png",
-		"mEg1mYf.png",
-		"ezgif-3ee8f21908313a.webp",
-		"32x32",
-		"www.example.com"
-	]
-	
-	for pattern in internal_patterns:
-		if url.ends_with(pattern) or url.contains(pattern):
-			return false
-	
-	# For gurt:// URLs, be more permissive - allow any gurt:// resource
-	if url.begins_with("gurt://"):
-		return true
-	elif url.begins_with("http://") or url.begins_with("https://"):
-		var url_domain = url.split("/")[0] + "//" + url.split("/")[2] if url.split("/").size() > 2 else url
-		return url_domain == current_domain
-	
-	return true
 
 func get_type_display_name(type: String) -> String:
 	match type:
@@ -282,30 +249,8 @@ func get_type_display_name(type: String) -> String:
 func get_icon_for_type(type: String) -> Texture2D:
 	return null
 
-func get_full_html_content() -> String:
-	if not current_parser or not current_parser.parse_result:
-		return ""
-	
-	var html = "<!DOCTYPE html>\n<html>\n"
-	
-	var head = current_parser.find_first("head")
-	if head:
-		html += "<head>\n"
-		html += element_to_html_with_children(head, 1)
-		html += "</head>\n"
-	
-	var body = current_parser.find_first("body")
-	if body:
-		html += "<body>\n"
-		html += element_to_html_with_children(body, 1)
-		html += "</body>\n"
-	
-	html += "</html>"
-	return html
-
 func clear_file_tree():
 	file_tree.clear()
-	# Don't clear file_resources - we want to keep network resources
 	clear_preview()
 
 func clear_preview():
@@ -314,6 +259,10 @@ func clear_preview():
 	preview_audio.stop()
 	preview_label.visible = true
 	preview_label.text = "Select a file to preview"
+	
+	for child in preview_container.get_children():
+		if child != preview_label and child != preview_image and child != preview_text and child != preview_audio:
+			child.queue_free()
 
 func _on_file_selected():
 	var selected_item = file_tree.get_selected()
@@ -397,51 +346,79 @@ func show_preview(metadata: Dictionary):
 		"font":
 			show_text_preview("Font: " + str(metadata.get("name", "")), "Font")
 		_:
-			preview_label.text = "No preview available for " + type
+			var file_content = metadata.get("content", "")
+			if file_content.length() > 0:
+				show_text_preview(str(file_content), type.capitalize())
+			else:
+				preview_label.text = "No preview available for " + type
 
 func show_text_preview(content: String, title: String):
 	preview_label.visible = false
 	preview_image.visible = false
 	preview_audio.stop()
-	preview_text.visible = true
+	preview_text.visible = false
 	
-	preview_text.text = content
-	preview_text.editable = false
-	preview_text.selecting_enabled = true
+	var syntax_highlighter = preload("res://Resources/LuaSyntaxHighlighter.tres")
+	var code_edit = CodeEditUtils.create_code_edit({
+		"text": content,
+		"editable": false,
+		"show_line_numbers": true,
+		"syntax_highlighter": syntax_highlighter.duplicate()
+	})
+	preview_container.add_child(code_edit)
 
 func show_image_preview(url: String):
 	preview_label.visible = false
 	preview_text.visible = false
 	preview_audio.stop()
-	preview_image.visible = true
+	preview_image.visible = false
 	
-	preview_image.texture = null
-	preview_image.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	
-	var file_info = file_resources.get(url)
-	if file_info and file_info.has("request"):
-		var request = file_info["request"]
-		if request.response_body_bytes.size() > 0:
-			load_image_from_bytes(request.response_body_bytes)
-		else:
-			load_image_directly(url)
-	else:
-		for key in file_resources.keys():
-			var resource = file_resources[key]
-			if resource.get("url", "") == url:
-				file_info = resource
-				break
+	var found_request = null
+	for request in NetworkManager.get_all_requests():
+		if request.url == url:
+			found_request = request
+			break
 		
-		if file_info and file_info.has("request"):
-			var request = file_info["request"]
-			if request.response_body_bytes.size() > 0:
-				load_image_from_bytes(request.response_body_bytes)
-			else:
-				preview_label.visible = true
-				preview_label.text = "No image data available"
+	if found_request and found_request.response_body_bytes.size() > 0:
+		var image = Image.new()
+		var response_bytes = found_request.response_body_bytes
+		var load_error = ERR_UNAVAILABLE
+		
+		load_error = image.load_png_from_buffer(response_bytes)
+		if load_error != OK:
+			load_error = image.load_jpg_from_buffer(response_bytes)
+			if load_error != OK:
+				load_error = image.load_webp_from_buffer(response_bytes)
+				if load_error != OK:
+					load_error = image.load_bmp_from_buffer(response_bytes)
+					if load_error != OK:
+						load_error = image.load_tga_from_buffer(response_bytes)
+		
+		if load_error == OK:
+			var texture = ImageTexture.create_from_image(image)
+			
+			var img_size = image.get_size()
+			var max_size = 300.0
+			var scale_factor = min(max_size / img_size.x, max_size / img_size.y, 1.0)
+			
+			preview_image.texture = texture
+			preview_image.expand_mode = TextureRect.EXPAND_FIT_WIDTH_PROPORTIONAL
+			preview_image.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+			preview_image.custom_minimum_size = Vector2(img_size.x * scale_factor, img_size.y * scale_factor)
+			preview_image.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+			preview_image.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+			preview_image.visible = true
+			
+			preview_label.visible = true
+			preview_label.text = str(img_size.x) + " × " + str(img_size.y)
+			preview_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+			preview_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 		else:
 			preview_label.visible = true
-			preview_label.text = "Image not loaded yet"
+			preview_label.text = "Failed to load image data (Error: " + str(load_error) + ")"
+	else:
+		preview_label.visible = true
+		preview_label.text = "Image not loaded yet"
 
 func show_image_info(file_info: Dictionary):
 	var request = file_info.get("request")
@@ -498,15 +475,15 @@ func show_audio_preview(url: String):
 	
 	preview_audio.stop()
 	
-	var file_info = file_resources.get(url)
-	if file_info and file_info.has("request"):
-		var request = file_info["request"]
-		if request.response_body_bytes.size() > 0:
-			load_audio_from_bytes(request.response_body_bytes)
-			show_audio_info(file_info)
-		else:
-			preview_label.visible = true
-			preview_label.text = "No audio data available"
+	var found_request = null
+	for request in NetworkManager.get_all_requests():
+		if request.url == url:
+			found_request = request
+			break
+	
+	if found_request and found_request.response_body_bytes.size() > 0:
+		load_audio_from_bytes(found_request.response_body_bytes)
+		show_audio_info({"request": found_request})
 	else:
 		preview_label.visible = true
 		preview_label.text = "Audio not loaded yet"
@@ -547,88 +524,7 @@ func get_audio_duration(body: PackedByteArray) -> String:
 	
 	return "Unknown"
 
-func load_image_from_bytes(body: PackedByteArray):
-	var image = Image.new()
-	var error = OK
-	
-	# Try PNG first
-	error = image.load_png_from_buffer(body)
-	if error == OK:
-		var texture = ImageTexture.new()
-		texture.create_from_image(image)
-		preview_image.texture = texture
-		show_image_resolution(image)
-		return
-	
-	# Try JPEG
-	error = image.load_jpg_from_buffer(body)
-	if error == OK:
-		var texture = ImageTexture.new()
-		texture.create_from_image(image)
-		preview_image.texture = texture
-		show_image_resolution(image)
-		return
-	
-	# Try WebP
-	error = image.load_webp_from_buffer(body)
-	if error == OK:
-		var texture = ImageTexture.new()
-		texture.create_from_image(image)
-		preview_image.texture = texture
-		show_image_resolution(image)
-		return
-	
-	# Try BMP
-	error = image.load_bmp_from_buffer(body)
-	if error == OK:
-		var texture = ImageTexture.new()
-		texture.create_from_image(image)
-		preview_image.texture = texture
-		show_image_resolution(image)
-		return
-	
-	# If all else fails, try to create a texture directly from the raw data
-	var texture = ImageTexture.new()
-	var raw_image = Image.create_from_data(100, 100, false, Image.FORMAT_RGBA8, body)
-	if raw_image:
-		texture.create_from_image(raw_image)
-		preview_image.texture = texture
-		show_image_resolution(raw_image)
-		return
-	
-	preview_label.visible = true
-	preview_label.text = "Failed to load image data (unsupported format)"
 
-func show_image_resolution(image: Image):
-	preview_label.visible = true
-	preview_label.text = str(image.get_width()) + " × " + str(image.get_height())
-
-func load_image_directly(url: String):
-	if url.begins_with("gurt://"):
-		var gurt_body = await Network.fetch_gurt_resource(url, true)
-		if not gurt_body.is_empty():
-			load_image_from_bytes(gurt_body)
-			return
-	elif url.begins_with("http://") or url.begins_with("https://"):
-		var http_request = HTTPRequest.new()
-		add_child(http_request)
-		
-		var request_error = http_request.request(url)
-		if request_error == OK:
-			var response = await http_request.request_completed
-			var result = response[0]
-			var response_code = response[1]
-			var body = response[3]
-			
-			if result == HTTPRequest.RESULT_SUCCESS and response_code == 200:
-				load_image_from_bytes(body)
-				http_request.queue_free()
-				return
-		
-		http_request.queue_free()
-	
-	preview_label.visible = true
-	preview_label.text = "Failed to load image: " + url
 
 func load_audio_from_bytes(body: PackedByteArray):
 	var audio_stream = AudioStreamWAV.new()
@@ -638,100 +534,6 @@ func load_audio_from_bytes(body: PackedByteArray):
 	
 	preview_label.visible = true
 	preview_label.text = "Playing audio file..."
-
-func element_to_html_with_children(element: HTMLParser.HTMLElement, indent_level: int = 0) -> String:
-	var indent = ""
-	for i in indent_level:
-		indent += "  "
-	
-	var html = indent + "<" + element.tag_name
-	
-	for attr_name in element.attributes:
-		var attr_value = element.attributes[attr_name]
-		html += " " + attr_name + "=\"" + attr_value + "\""
-	
-	if element.is_self_closing:
-		html += " />\n"
-	else:
-		html += ">"
-		var text_content = element.text_content.strip_edges()
-		
-		if text_content.length() > 0:
-			if element.children.size() > 0:
-				html += "\n" + indent + "  " + text_content + "\n"
-			else:
-				html += text_content
-		elif element.children.size() > 0:
-			html += "\n"
-		
-		for child in element.children:
-			html += element_to_html_with_children(child, indent_level + 1)
-		
-		if element.children.size() > 0:
-			html += indent
-		html += "</" + element.tag_name + ">\n"
-	
-	return html
-
-func beautify_css(css: String) -> String:
-	var result = ""
-	var indent_level = 0
-	var i = 0
-	
-	while i < css.length():
-		var char = css[i]
-		
-		if char == "{":
-			result += " {\n"
-			indent_level += 1
-			result += "  ".repeat(indent_level)
-		elif char == "}":
-			indent_level = max(0, indent_level - 1)
-			result += "\n" + "  ".repeat(indent_level) + "}\n"
-			if indent_level > 0:
-				result += "  ".repeat(indent_level)
-		elif char == ";":
-			result += ";\n" + "  ".repeat(indent_level)
-		elif char == "\n":
-			result += "\n" + "  ".repeat(indent_level)
-		else:
-			result += char
-		
-		i += 1
-	
-	return result
-
-func beautify_javascript(js: String) -> String:
-	var result = ""
-	var indent_level = 0
-	var in_string = false
-	var string_char = ""
-	
-	for i in js.length():
-		var char = js[i]
-		
-		if not in_string:
-			if char == '"' or char == "'":
-				in_string = true
-				string_char = char
-				result += char
-			elif char == "{":
-				result += char + "\n"
-				indent_level += 1
-				result += "  ".repeat(indent_level)
-			elif char == "}":
-				indent_level = max(0, indent_level - 1)
-				result += "\n" + "  ".repeat(indent_level) + char
-			elif char == ";":
-				result += char + "\n" + "  ".repeat(indent_level)
-			else:
-				result += char
-		else:
-			result += char
-			if char == string_char and (i == 0 or js[i-1] != "\\"):
-				in_string = false
-	
-	return result
 
 func format_file_size(bytes: int) -> String:
 	if bytes < 1024:
@@ -745,4 +547,3 @@ func _exit_tree():
 	clear_preview()
 	if current_tab:
 		disconnect_tab_signals()
-	disconnect_network_signals()

@@ -23,7 +23,7 @@ func get_elements_tab() -> ElementsTab:
 	return elements_tab
 
 func _on_trace_log_message(message: String, level: String, timestamp: float):
-	if console:
+	if console and visible:
 		console.add_log_entry(message, level, timestamp)
 
 func _on_tab_selected(tab_index: int):
@@ -52,9 +52,8 @@ func update_sources_tab():
 		var active_tab = main_scene.get_active_tab()
 		if active_tab != current_tab:
 			current_tab = active_tab
-			if sources_tab:
-				sources_tab.set_current_tab(active_tab)
-				sources_tab.refresh_sources()
+		if sources_tab:
+			sources_tab.set_current_tab(active_tab)
 
 func update_application_tab():
 	var main_scene = Engine.get_main_loop().current_scene

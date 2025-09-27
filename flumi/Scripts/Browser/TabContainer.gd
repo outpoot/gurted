@@ -212,6 +212,10 @@ func set_active_tab(index: int) -> void:
 			main.search_bar.grab_focus()
 		
 		main.update_navigation_buttons()
+		
+		# Notify DevTools that the active tab has changed
+		if tabs[index].dev_tools:
+			tabs[index].dev_tools.update_sources_tab()
 
 func create_tab() -> void:
 	var index = tabs.size();

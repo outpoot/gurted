@@ -23,15 +23,12 @@ func _ready():
 	elements_tree.gui_input.connect(_on_tree_gui_input)
 	filter_input.text_changed.connect(_on_filter_changed)
 	clear_filter_button.pressed.connect(_on_clear_filter_pressed)
+	visibility_changed.connect(_on_visibility_changed)
 
-func setup_highlight_style():
-	highlight_style = StyleBoxFlat.new()
-	highlight_style.bg_color = Color(0, 0, 1, 0.3)
-	highlight_style.border_width_left = 2
-	highlight_style.border_width_right = 2
-	highlight_style.border_width_top = 2
-	highlight_style.border_width_bottom = 2
-	highlight_style.border_color = Color(0, 0, 1, 1)
+func _on_visibility_changed():
+	if visible and current_tab and current_tab.lua_apis.size() > 0:
+		current_parser = current_tab.lua_apis[0].dom_parser
+		call_deferred("update_elements_tree")
 
 func setup_update_timer():
 	update_timer = Timer.new()
@@ -42,11 +39,35 @@ func setup_update_timer():
 	update_timer.start()
 
 func _on_update_timer_timeout():
+	if not visible:
+		return
+		
 	if current_tab and current_tab.lua_apis.size() > 0:
 		var parser = current_tab.lua_apis[0].dom_parser
 		if parser != current_parser:
 			current_parser = parser
 			update_elements_tree()
+		elif current_parser and current_parser.parse_result:
+			var body_element = current_parser.find_first("body")
+			if body_element:
+				var current_element_count = count_elements_recursive(body_element)
+				if current_element_count != element_items.size():
+					update_elements_tree()
+
+func count_elements_recursive(element: HTMLParser.HTMLElement) -> int:
+	var count = 1
+	for child in element.children:
+		count += count_elements_recursive(child)
+	return count
+
+func setup_highlight_style():
+	highlight_style = StyleBoxFlat.new()
+	highlight_style.bg_color = Color(0, 0, 1, 0.3)
+	highlight_style.border_width_left = 2
+	highlight_style.border_width_right = 2
+	highlight_style.border_width_top = 2
+	highlight_style.border_width_bottom = 2
+	highlight_style.border_color = Color(0, 0, 1, 1)
 
 func set_current_tab(tab: Tab):
 	if current_tab:
@@ -56,7 +77,7 @@ func set_current_tab(tab: Tab):
 	if tab and tab.lua_apis.size() > 0:
 		current_parser = tab.lua_apis[0].dom_parser
 		connect_tab_signals()
-		update_elements_tree()
+		call_deferred("update_elements_tree")
 	else:
 		current_parser = null
 		clear_elements_tree()
@@ -67,6 +88,8 @@ func connect_tab_signals():
 			current_tab.content_updated.connect(_on_content_updated)
 		if current_tab.has_signal("tab_pressed"):
 			current_tab.tab_pressed.connect(_on_tab_pressed)
+		if current_tab.has_signal("url_changed"):
+			current_tab.url_changed.connect(_on_url_changed)
 
 func disconnect_tab_signals():
 	if current_tab:
@@ -74,8 +97,16 @@ func disconnect_tab_signals():
 			current_tab.content_updated.disconnect(_on_content_updated)
 		if current_tab.has_signal("tab_pressed"):
 			current_tab.tab_pressed.disconnect(_on_tab_pressed)
+		if current_tab.has_signal("url_changed"):
+			current_tab.url_changed.disconnect(_on_url_changed)
 
 func _on_content_updated():
+	update_elements_tree()
+
+func _on_url_changed():
+	clear_elements_tree()
+	if current_tab and current_tab.lua_apis.size() > 0:
+		current_parser = current_tab.lua_apis[0].dom_parser
 	update_elements_tree()
 
 func _on_tab_pressed():
@@ -185,28 +216,35 @@ func build_tree_recursive(element: HTMLParser.HTMLElement, parent_item: TreeItem
 		return
 	
 	var item = elements_tree.create_item(parent_item)
-	var display_text = element.tag_name
+	var display_text = "<" + element.tag_name
 	
-	if element.get_id():
-		display_text += "#" + element.get_id()
+	# Add attributes
+	for attr_name in element.attributes.keys():
+		var attr_value = element.attributes[attr_name]
+		if attr_value != "":
+			display_text += " " + attr_name + "=\"" + attr_value + "\""
+		else:
+			display_text += " " + attr_name
 	
-	var class_names = HTMLParser.extract_class_names(element)
-	if class_names.size() > 0:
-		display_text += "." + ".".join(class_names)
-	
-	if element.text_content.strip_edges().length() > 0:
-		var text_preview = element.text_content.strip_edges()
-		if text_preview.length() > 30:
-			text_preview = text_preview.substr(0, 30) + "..."
-		display_text += " \"" + text_preview + "\""
+	display_text += ">"
 	
 	item.set_text(0, display_text)
 	item.set_metadata(0, element)
 	
 	element_items[element] = item
 	
+	# Process children
 	for child in element.children:
-		build_tree_recursive(child, item)
+		if child.tag_name == "#text" or child.tag_name == "":
+			# This is a text node, show it as text content
+			var text_content = child.text_content.strip_edges()
+			if text_content.length() > 0:
+				var text_item = elements_tree.create_item(item)
+				text_item.set_text(0, text_content)
+				text_item.set_metadata(0, child)
+		else:
+			# This is a real HTML element, process it recursively
+			build_tree_recursive(child, item)
 
 func _on_element_selected():
 	var selected_item = elements_tree.get_selected()

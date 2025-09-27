@@ -9,37 +9,54 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 script = ExtResource("1_0x1y2")
 
-[node name="CrumbsTree" type="Tree" parent="."]
+[node name="HeaderContainer" type="VBoxContainer" parent="."]
 layout_mode = 2
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-offset_bottom = -60.0
+size_flags_vertical = 0
 
-[node name="ButtonContainer" type="HBoxContainer" parent="."]
+[node name="SearchContainer" type="HBoxContainer" parent="HeaderContainer"]
 layout_mode = 2
-anchors_preset = 7
-anchor_left = 0.5
-anchor_top = 1.0
-anchor_right = 0.5
-anchor_bottom = 1.0
-offset_left = -300.0
-offset_top = -60.0
-offset_right = 300.0
-offset_bottom = 0.0
+size_flags_vertical = 0
 
-[node name="AddCrumbBtn" type="Button" parent="ButtonContainer"]
+[node name="SearchLabel" type="Label" parent="HeaderContainer/SearchContainer"]
+layout_mode = 2
+text = "Filter:"
+custom_minimum_size = Vector2(50, 0)
+vertical_alignment = 1
+
+[node name="SearchEdit" type="LineEdit" parent="HeaderContainer/SearchContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+placeholder_text = "Search crumbs..."
+
+[node name="ButtonContainer" type="HBoxContainer" parent="HeaderContainer"]
+layout_mode = 2
+size_flags_vertical = 0
+
+[node name="AddCrumbBtn" type="Button" parent="HeaderContainer/ButtonContainer"]
 layout_mode = 2
 text = "Add Crumb"
+custom_minimum_size = Vector2(100, 0)
 
-[node name="EditCrumbBtn" type="Button" parent="ButtonContainer"]
+[node name="EditCrumbBtn" type="Button" parent="HeaderContainer/ButtonContainer"]
 layout_mode = 2
 text = "Edit"
+custom_minimum_size = Vector2(80, 0)
 
-[node name="DeleteCrumbBtn" type="Button" parent="ButtonContainer"]
+[node name="DeleteCrumbBtn" type="Button" parent="HeaderContainer/ButtonContainer"]
 layout_mode = 2
 text = "Delete"
+custom_minimum_size = Vector2(80, 0)
 
-[node name="ClearCrumbsBtn" type="Button" parent="ButtonContainer"]
+[node name="ClearCrumbsBtn" type="Button" parent="HeaderContainer/ButtonContainer"]
 layout_mode = 2
 text = "Clear All"
+custom_minimum_size = Vector2(80, 0)
+
+[node name="MainContainer" type="VBoxContainer" parent="."]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="CrumbsTree" type="Tree" parent="MainContainer"]
+layout_mode = 2
+size_flags_vertical = 3
+custom_minimum_size = Vector2(0, 200)

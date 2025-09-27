@@ -192,14 +192,14 @@ bg_color = Color(0.6, 0.6, 0.6, 0)
 draw_center = false
 
 [node name="Control" type="Control"]
-custom_minimum_size = Vector2(800, 600)
+custom_minimum_size = Vector2(495, 400)
 layout_mode = 3
 anchors_preset = 0
 size_flags_vertical = 3
 script = ExtResource("25_devtools")
 
 [node name="DevTools" type="VBoxContainer" parent="."]
-custom_minimum_size = Vector2(800, 600)
+custom_minimum_size = Vector2(495, 400)
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -210,7 +210,7 @@ size_flags_vertical = 3
 theme_override_constants/separation = 0
 
 [node name="TabContainer" type="TabContainer" parent="DevTools"]
-custom_minimum_size = Vector2(600, 0)
+custom_minimum_size = Vector2(300, 0)
 layout_mode = 2
 size_flags_vertical = 3
 theme_override_colors/drop_mark_color = Color(0.247059, 0.466667, 0.807843, 1)

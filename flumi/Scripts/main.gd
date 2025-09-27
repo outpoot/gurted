@@ -261,9 +261,14 @@ func fetch_local_file_content_async(file_url: String, tab: Tab, original_url: St
 func handle_local_file_result(result: Dictionary, tab: Tab, original_url: String, file_url: String, add_to_history: bool = true) -> void:
 	var html_bytes = result.html_bytes
 	
-	current_domain = file_url
-	if not search_bar.has_focus():
-		search_bar.text = original_url
+	# Set current_domain only if this is the active tab
+	if tab == get_active_tab():
+		current_domain = file_url
+		if not search_bar.has_focus():
+			search_bar.text = original_url
+	
+	# Set the tab's current URL
+	tab.set_current_url(file_url)
 	
 	render_content(html_bytes, tab)
 	
@@ -296,9 +301,14 @@ func _handle_gurt_result(result: Dictionary, tab: Tab, original_url: String, gur
 	var html_bytes = result.html_bytes
 	network_end_time = Time.get_ticks_msec()
 	
-	current_domain = gurt_url
-	if not search_bar.has_focus():
-		search_bar.text = original_url  # Show the original input in search bar
+	# Set current_domain only if this is the active tab
+	if tab == get_active_tab():
+		current_domain = gurt_url
+		if not search_bar.has_focus():
+			search_bar.text = original_url  # Show the original input in search bar
+	
+	# Set the tab's current URL
+	tab.set_current_url(gurt_url)
 	
 	render_content(html_bytes, tab)
 	
