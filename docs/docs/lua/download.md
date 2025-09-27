@@ -6,8 +6,6 @@ The download API allows Lua scripts to trigger file downloads from URLs.
 
 Downloads a file from a URL and saves it to the user's default download location.
 
-![Download animation in Flumi](../static/img/docs/download.gif)
-
 ### Syntax
 
 ```lua

@@ -37,6 +37,7 @@
 	},
 	"dependencies": {
 		"@fontsource/instrument-serif": "^5.2.7",
+		"@sveltejs/adapter-cloudflare": "^7.2.3",
 		"lucide-svelte": "^0.542.0"
 	}
 }
