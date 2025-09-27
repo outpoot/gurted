@@ -21,7 +21,6 @@ jobs:
       - name: Install patchelf
         run: sudo apt-get update && sudo apt-get install -y patchelf
 
-
       - name: Get Export Templates
         run: |
           wget -O templates.tpz https://github.com/godotengine/godot-builds/releases/download/4.4-stable/Godot_v4.4-stable_export_templates.tpz
@@ -35,6 +34,7 @@ jobs:
           mkdir builds
           cd flumi
           ../godot/Godot_v4.4-stable_linux.x86_64 --headless --export-release "Linux" ../builds/Flumi.x86_64
+
       - name: Verify binary exists
         run: |
           if [ ! -f builds/Flumi.x86_64 ]; then
@@ -42,21 +42,22 @@ jobs:
             exit 1
           fi
           echo "exported! we can move on"
+
       - name: Set up directory structure
         run: |
           mkdir -p flumi-pkg/usr/{bin,lib/flumi}
-          cp builds/*.so flumi-pkg/usr/lib/flumi/
-          cp builds/Flumi.x86_64 flumi-pkg/usr/bin/
-          patchelf --set-rpath '$ORIGIN/../lib/flumi' flumi-pkg/usr/bin/Flumi.x86_64
+          # Put everything in /usr/lib/flumi
+          cp builds/Flumi.x86_64 flumi-pkg/usr/lib/flumi/
+          cp builds/*.so flumi-pkg/usr/lib/flumi/ 2>/dev/null || true
+          # Create a symlink in /usr/bin
+          ln -s ../lib/flumi/Flumi.x86_64 flumi-pkg/usr/bin/flumi
 
       - name: Build package
         run: |
-          dpkg-deb -b flumi-pkg
+          dpkg-deb -b flumi-pkg flumi-pkg.deb
 
       - name: Upload deb
         uses: actions/upload-artifact@v4.6.2
         with:
           name: Package
           path: ./flumi-pkg.deb
-
-      
