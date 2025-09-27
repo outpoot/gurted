@@ -17,6 +17,10 @@ jobs:
           wget -O godot.zip https://github.com/godotengine/godot-builds/releases/download/4.4-stable/Godot_v4.4-stable_linux.x86_64.zip
           unzip godot.zip -d godot
           chmod +x godot/Godot_v4.4-stable_linux.x86_64
+          
+      - name: Install patchelf
+        run: sudo apt-get update && sudo apt-get install -y patchelf
+
 
       - name: Get Export Templates
         run: |
@@ -38,14 +42,19 @@ jobs:
             exit 1
           fi
           echo "exported! we can move on"
-  package:
-    name: Create packages
-    runs-on: ubuntu-24.04
-    needs: build
-
-    # we will fill this in later
-    steps:
-      - name: filler
+      - name: Set up directory structure
         run: |
-          echo hello
+          cd flumi-pkg
+          mkdir -p usr/{bin, lib/flumi}
+          cp ../builds/*.so ./usr/lib/flumi
+          cp ../builds/Flumi.x86_64 ./usr/bin
+          patchelf --set-rpath '$ORIGIN/../lib/flumi' Flumi.x86_64
+      - name: Build package
+        run: |
+          dpkg-deb -b flumi-pkg
+      - name: Upload deb
+        uses: actions/upload-artifact@v4.6.2
+        with:
+          name: Package
+          path: ./flumi-pkg.deb
       
