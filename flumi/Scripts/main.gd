@@ -575,6 +575,8 @@ func render_content(html_bytes: PackedByteArray, target_tab: Tab = null) -> void
 	
 	if needs_visibility_restore and rendering_tab:
 		_reset_tab_container_sizes(rendering_tab)
+	
+	rendering_tab.content_updated.emit()
 
 
 func _copy_active_container_sizes_to_tab(tab: Tab) -> void:

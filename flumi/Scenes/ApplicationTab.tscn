@@ -1,0 +1,45 @@
+[gd_scene load_steps=2 format=3 uid="uid://bsivfby5t88hg"]
+
+[ext_resource type="Script" path="res://Scripts/Browser/ApplicationTab.gd" id="1_0x1y2"]
+
+[node name="ApplicationTab" type="VBoxContainer"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+script = ExtResource("1_0x1y2")
+
+[node name="CrumbsTree" type="Tree" parent="."]
+layout_mode = 2
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_bottom = -60.0
+
+[node name="ButtonContainer" type="HBoxContainer" parent="."]
+layout_mode = 2
+anchors_preset = 7
+anchor_left = 0.5
+anchor_top = 1.0
+anchor_right = 0.5
+anchor_bottom = 1.0
+offset_left = -300.0
+offset_top = -60.0
+offset_right = 300.0
+offset_bottom = 0.0
+
+[node name="AddCrumbBtn" type="Button" parent="ButtonContainer"]
+layout_mode = 2
+text = "Add Crumb"
+
+[node name="EditCrumbBtn" type="Button" parent="ButtonContainer"]
+layout_mode = 2
+text = "Edit"
+
+[node name="DeleteCrumbBtn" type="Button" parent="ButtonContainer"]
+layout_mode = 2
+text = "Delete"
+
+[node name="ClearCrumbsBtn" type="Button" parent="ButtonContainer"]
+layout_mode = 2
+text = "Clear All"

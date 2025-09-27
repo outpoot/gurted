@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Sources Test Page</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .container { max-width: 800px; margin: 0 auto; }
+        .header { color: #333; border-bottom: 2px solid #007bff; padding-bottom: 10px; }
+        .content { margin: 20px 0; }
+        .button { background: #007bff; color: white; padding: 10px 20px; border: none; cursor: pointer; margin: 5px; }
+        .button:hover { background: #0056b3; }
+        .image-container { text-align: center; margin: 20px 0; }
+        .audio-container { margin: 20px 0; }
+        .code-block { background: #f8f9fa; border: 1px solid #e9ecef; padding: 15px; border-radius: 5px; font-family: monospace; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 class="header">Sources Dev Tools Test Page</h1>
+        
+        <div class="content">
+            <h2>HTML Content</h2>
+            <p>This page demonstrates various resources that should appear in the Sources tab:</p>
+            
+            <h3>Images</h3>
+            <div class="image-container">
+                <img src="https://via.placeholder.com/300x200/007bff/ffffff?text=Test+Image+1" alt="Test Image 1">
+                <br>
+                <img src="https://via.placeholder.com/200x150/28a745/ffffff?text=Test+Image+2" alt="Test Image 2">
+            </div>
+            
+            <h3>Audio</h3>
+            <div class="audio-container">
+                <audio controls>
+                    <source src="https://www.soundjay.com/misc/sounds/bell-ringing-05.wav" type="audio/wav">
+                    Your browser does not support the audio element.
+                </audio>
+            </div>
+            
+            <h3>Inline CSS</h3>
+            <div class="code-block">
+                .custom-style { color: red; font-weight: bold; }
+                .another-style { background: yellow; padding: 10px; }
+            </div>
+            
+            <h3>Inline JavaScript</h3>
+            <div class="code-block">
+                function testFunction() {
+                    console.log("This is a test function");
+                    alert("Hello from inline script!");
+                }
+            </div>
+            
+            <h3>Interactive Elements</h3>
+            <button class="button" onclick="testFunction()">Test Function</button>
+            <button class="button" onclick="addDynamicContent()">Add Dynamic Content</button>
+            
+            <div id="dynamic-content"></div>
+        </div>
+    </div>
+
+    <script>
+        function testFunction() {
+            console.log("Test function called!");
+            alert("Hello from the test function!");
+        }
+        
+        function addDynamicContent() {
+            var container = document.getElementById('dynamic-content');
+            var newDiv = document.createElement('div');
+            newDiv.innerHTML = '<p>Dynamic content added at ' + new Date().toLocaleTimeString() + '</p>';
+            newDiv.style.background = '#e9ecef';
+            newDiv.style.padding = '10px';
+            newDiv.style.margin = '10px 0';
+            newDiv.style.borderRadius = '5px';
+            container.appendChild(newDiv);
+        }
+        
+        // Additional inline script
+        console.log("Page loaded successfully!");
+    </script>
+</body>
+</html>

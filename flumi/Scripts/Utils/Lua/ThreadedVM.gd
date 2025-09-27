@@ -662,6 +662,9 @@ func _emit_dom_operation_request(operation: Dictionary):
 func _create_threaded_timeout(timeout_id: int, delay_ms: int):
 	lua_api._ensure_timeout_manager()
 	
+	if delay_ms <= 0:
+		delay_ms = 1
+	
 	var timeout_info = lua_api.timeout_manager.TimeoutInfo.new(timeout_id, timeout_id, lua_vm, lua_api.timeout_manager, false, delay_ms)
 	lua_api.timeout_manager.active_timeouts[timeout_id] = timeout_info
 	lua_api.timeout_manager.threaded_vm = self
@@ -677,6 +680,9 @@ func _create_threaded_timeout(timeout_id: int, delay_ms: int):
 
 func _create_threaded_interval(interval_id: int, delay_ms: int):
 	lua_api._ensure_timeout_manager()
+	
+	if delay_ms <= 0:
+		delay_ms = 1
 	
 	var timeout_info = lua_api.timeout_manager.TimeoutInfo.new(interval_id, interval_id, lua_vm, lua_api.timeout_manager, true, delay_ms)
 	lua_api.timeout_manager.active_timeouts[interval_id] = timeout_info
