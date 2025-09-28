@@ -2,70 +2,132 @@ name: Build Flumi
 
 on:
   push:
-    branches: [ main ]
-  pull_request:
-    branches: [ main ]
-  release:
-    types: [ published ]
+    branches: ["**"]
+  workflow_dispatch:
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build:
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        include:
-          - os: ubuntu-latest
-            preset: Linux
-            output_name: Flumi-Linux-x86_64
-          - os: windows-latest
-            preset: "Windows Desktop"
-            output_name: Flumi-Windows-x86_64
+    runs-on: ubuntu-latest
+    
+    env:
+      GODOT_VERSION: "4.4"
+      EXPORT_DIR: "build"
+      LINUX_NAME: "Flumi-Linux-x86_64"
+      WINDOWS_NAME: "Flumi-Windows-x86_64"
 
     steps:
-    - uses: actions/checkout@v4
+      - name: Checkout (with LFS)
+        uses: actions/checkout@v4
+        with:
+          lfs: true
 
-    - name: Setup Godot
-      uses: GodotTools/godot-setup@v1.0.3
-      with:
-        godot-version: "4.2.2"
-        godot-platform: ${{ matrix.preset == 'Linux' && 'linux' || 'windows' }}
+      - name: Install Godot (headless) and templates
+        run: |
+          set -euxo pipefail
+          mkdir -p tools/godot
+          cd tools/godot
+          curl -L -o godot.zip "https://github.com/godotengine/godot-builds/releases/download/4.4-stable/Godot_v4.4-stable_linux.x86_64.zip"
+          unzip -q godot.zip
+          mv Godot_v4.4-stable_linux.x86_64 Godot
+          chmod +x Godot
+          cd -
+          TEMPLATES_DIR="$HOME/.local/share/godot/export_templates/4.4.stable"
+          mkdir -p "${TEMPLATES_DIR}"
+          curl -L -o templates.tpz "https://github.com/godotengine/godot-builds/releases/download/4.4-stable/Godot_v4.4-stable_export_templates.tpz"
+          unzip -q templates.tpz -d templates_unpacked
+          cp -R templates_unpacked/templates/* "${TEMPLATES_DIR}/"
 
-    - name: Create export directory
-      run: |
-        mkdir -p dist
-        
-    - name: Export project
-      run: |
-        if [ "${{ matrix.preset }}" = "Linux" ]; then
-          godot --headless --export-release "${{ matrix.preset }}" dist/${{ matrix.output_name }}.x86_64
-        else
-          godot --headless --export-release "${{ matrix.preset }}" dist/${{ matrix.output_name }}.exe
-        fi
+      - name: Export Linux build
+        run: |
+          set -euxo pipefail
+          mkdir -p build
+          cd flumi
+          ../tools/godot/Godot --headless --path . --export-release "Linux" "../build/${LINUX_NAME}.x86_64"
 
-    - name: Create archive
-      run: |
-        if [ "${{ matrix.preset }}" = "Linux" ]; then
-          cd dist
-          tar -czf ${{ matrix.output_name }}.tar.gz ${{ matrix.output_name }}.x86_64
-          cd ..
-        else
-          cd dist
-          powershell Compress-Archive -Path ${{ matrix.output_name }}.exe -DestinationPath ${{ matrix.output_name }}.zip
-          cd ..
-        fi
+      - name: Export Windows build
+        run: |
+          set -euxo pipefail
+          mkdir -p build/Windows
+          cd flumi
+          ../tools/godot/Godot --headless --path . --export-release "Windows Desktop" "../build/Windows/${WINDOWS_NAME}.exe"
 
-    - name: Upload Linux artifact
-      if: matrix.preset == 'Linux'
-      uses: actions/upload-artifact@v4
-      with:
-        name: ${{ matrix.output_name }}
-        path: dist/${{ matrix.output_name }}.tar.gz
-        retention-days: 30
+      - name: Create Linux archive
+        run: |
+          set -euxo pipefail
+          cd build
+          tar -czf "${LINUX_NAME}.tar.gz" "${LINUX_NAME}.x86_64" "${LINUX_NAME}.pck" *.so 2>/dev/null || true
 
-    - name: Upload Windows artifact
-      if: matrix.preset == 'Windows Desktop'
-      uses: actions/upload-artifact@v4
-      with:
-        name: ${{ matrix.output_name }}
-        path: dist/${{ matrix.output_name }}.zip
-        retention-days: 30
+      - name: Download UPX
+        run: |
+          set -euxo pipefail
+          mkdir -p tools/upx
+          cd tools/upx
+          curl -L -o upx.tar.xz "https://github.com/upx/upx/releases/download/v5.0.2/upx-5.0.2-amd64_linux.tar.xz"
+          tar -xf upx.tar.xz
+          cd -
+
+      - name: Compress Windows executables with UPX
+        run: |
+          set -euxo pipefail
+          cd build/Windows
+          ls -la
+          # Compress all exe and dll files that exist
+          for file in *.exe *.dll; do
+            if [ -f "$file" ]; then
+              echo "Compressing $file"
+              ../../tools/upx/upx-5.0.2-amd64_linux/upx --best --ultra-brute "$file"
+            fi
+          done
+
+      - name: Create custom InnoSetup Dockerfile
+        run: |
+          set -euxo pipefail
+          cat > Dockerfile.innosetup << 'EOF'
+          FROM docker.io/amake/innosetup
+          USER root
+          ENV HOME /home/xclient
+          ENV WINEPREFIX /home/xclient/.wine
+          ENV WINEARCH win32
+          RUN chown -R root /home
+          WORKDIR /work
+          ENTRYPOINT ["iscc"]
+          EOF
+
+      - name: Build custom InnoSetup Docker image
+        run: |
+          set -euxo pipefail
+          docker build -f Dockerfile.innosetup -t flumi-innosetup .
+
+      - name: Build Windows installer
+        run: |
+          set -euxo pipefail
+          mkdir -p build/Windows/installer
+          
+          docker run --rm \
+            -v "$PWD:/work" \
+            -w /work/flumi/build-scripts \
+            flumi-innosetup flumi-workflow-installer.iss
+
+      - name: Create Windows installer archive
+        run: |
+          set -euxo pipefail
+          cd build/Windows/installer
+          if [ -f "Flumi-Setup-Latest.exe" ]; then
+            zip -j "../../Flumi-Windows-x86_64.zip" "Flumi-Setup-Latest.exe"
+          else
+            echo "Installer not found!"
+          fi
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: builds-${{ github.sha }}
+          path: |
+            build/Flumi-Linux-x86_64.tar.gz
+            build/Flumi-Windows-x86_64.zip
+          if-no-files-found: warn
+          retention-days: 14
