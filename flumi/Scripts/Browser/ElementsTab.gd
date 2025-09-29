@@ -14,6 +14,7 @@ var element_items: Dictionary = {}
 var highlight_style: StyleBoxFlat = null
 var filter_text: String = ""
 var update_timer: Timer = null
+var is_loading: bool = false
 
 func _ready():
 	setup_highlight_style()
@@ -26,9 +27,11 @@ func _ready():
 	visibility_changed.connect(_on_visibility_changed)
 
 func _on_visibility_changed():
-	if visible and current_tab and current_tab.lua_apis.size() > 0:
-		current_parser = current_tab.lua_apis[0].dom_parser
-		call_deferred("update_elements_tree")
+	if visible:
+		# If we have a current tab, update the tree
+		if current_tab and current_tab.lua_apis.size() > 0:
+			current_parser = current_tab.lua_apis[0].dom_parser
+			call_deferred("update_elements_tree")
 
 func setup_update_timer():
 	update_timer = Timer.new()
@@ -41,18 +44,18 @@ func setup_update_timer():
 func _on_update_timer_timeout():
 	if not visible:
 		return
-		
+
 	if current_tab and current_tab.lua_apis.size() > 0:
 		var parser = current_tab.lua_apis[0].dom_parser
 		if parser != current_parser:
 			current_parser = parser
-			update_elements_tree()
-		elif current_parser and current_parser.parse_result:
+			call_deferred("update_elements_tree")
+		elif current_parser and current_parser.parse_result and not current_parser.parse_result.all_elements.is_empty():
 			var body_element = current_parser.find_first("body")
 			if body_element:
 				var current_element_count = count_elements_recursive(body_element)
 				if current_element_count != element_items.size():
-					update_elements_tree()
+					call_deferred("update_elements_tree")
 
 func count_elements_recursive(element: HTMLParser.HTMLElement) -> int:
 	var count = 1
@@ -72,15 +75,16 @@ func setup_highlight_style():
 func set_current_tab(tab: Tab):
 	if current_tab:
 		disconnect_tab_signals()
-	
+
 	current_tab = tab
 	if tab and tab.lua_apis.size() > 0:
 		current_parser = tab.lua_apis[0].dom_parser
 		connect_tab_signals()
+		show_loading_state("Loading page structure...")
 		call_deferred("update_elements_tree")
 	else:
 		current_parser = null
-		clear_elements_tree()
+		show_loading_state("No page content available")
 
 func connect_tab_signals():
 	if current_tab:
@@ -196,67 +200,127 @@ func scroll_to_element(element: HTMLParser.HTMLElement):
 			scroll_container.scroll_to_item(dom_node)
 
 func update_elements_tree():
-	if not current_parser or not current_parser.parse_result:
+	if not current_tab:
 		return
-	
+
+	if not current_parser:
+		show_loading_state("Waiting for page content...")
+		return
+
+	if not current_parser.parse_result:
+		show_loading_state("Parsing page content...")
+		call_deferred("update_elements_tree")
+		return
+
+	if current_parser.parse_result.all_elements.is_empty():
+		show_loading_state("Loading page structure...")
+		call_deferred("update_elements_tree")
+		return
+
+	is_loading = true
 	clear_elements_tree()
-	
+
 	var body_element = current_parser.find_first("body")
 	if body_element:
-		build_tree_recursive(body_element, null)
+		build_tree_recursive(body_element, null, 0)
 		apply_filter()
+		show_loading_state("")
+	else:
+		var root = elements_tree.create_item()
+		root.set_text(0, "No content to display")
+		root.set_icon(0, null)
+		show_loading_state("")
+
+	is_loading = false
+
+func show_loading_state(message: String):
+	if message.is_empty():
+		if elements_tree.get_root():
+			var root = elements_tree.get_root()
+			if root.get_text(0).begins_with("Loading") or root.get_text(0).begins_with("Waiting") or root.get_text(0).begins_with("Parsing"):
+				elements_tree.clear()
+	else:
+		elements_tree.clear()
+		var root = elements_tree.create_item()
+		root.set_text(0, message)
+		root.set_icon(0, null)
 
 func clear_elements_tree():
 	elements_tree.clear()
 	element_items.clear()
 	clear_highlight()
 
-func build_tree_recursive(element: HTMLParser.HTMLElement, parent_item: TreeItem):
+func build_tree_recursive(element: HTMLParser.HTMLElement, parent_item: TreeItem, depth: int = 0):
 	if not element:
 		return
-	
-	var item = elements_tree.create_item(parent_item)
-	var display_text = "<" + element.tag_name
-	
-	# Add attributes
+
+	var open_item = elements_tree.create_item()
+	var indent = "  ".repeat(depth)
+	var open_text = indent + "<" + element.tag_name
 	for attr_name in element.attributes.keys():
 		var attr_value = element.attributes[attr_name]
 		if attr_value != "":
-			display_text += " " + attr_name + "=\"" + attr_value + "\""
+			open_text += " " + attr_name + "=\"" + attr_value + "\""
 		else:
-			display_text += " " + attr_name
-	
-	display_text += ">"
-	
-	item.set_text(0, display_text)
-	item.set_metadata(0, element)
-	
-	element_items[element] = item
-	
-	# Process children
+			open_text += " " + attr_name
+
+	open_text += ">"
+	open_item.set_text(0, open_text)
+	open_item.set_metadata(0, element)
+
+	element_items[element] = open_item
+
+	var text_content = element.text_content.strip_edges()
+	if text_content.length() > 0:
+		var text_item = elements_tree.create_item()
+		var text_indent = "  ".repeat(depth + 1)
+		text_item.set_text(0, text_indent + text_content)
+		text_item.set_metadata(0, element)
+
 	for child in element.children:
 		if child.tag_name == "#text" or child.tag_name == "":
-			# This is a text node, show it as text content
-			var text_content = child.text_content.strip_edges()
-			if text_content.length() > 0:
-				var text_item = elements_tree.create_item(item)
-				text_item.set_text(0, text_content)
+			var child_text_content = child.text_content.strip_edges()
+			if child_text_content.length() > 0:
+				var text_item = elements_tree.create_item()
+				var text_indent = "  ".repeat(depth + 1)
+				text_item.set_text(0, text_indent + child_text_content)
 				text_item.set_metadata(0, child)
 		else:
-			# This is a real HTML element, process it recursively
-			build_tree_recursive(child, item)
+			build_tree_recursive(child, open_item, depth + 1)
+
+	var has_children = element.children.size() > 0
+	var has_text = element.text_content.strip_edges().length() > 0
+
+	if has_children or has_text:
+		var close_item = elements_tree.create_item()
+		var close_indent = "  ".repeat(depth)
+		close_item.set_text(0, close_indent + "</" + element.tag_name + ">")
+		close_item.set_metadata(0, element)
 
 func _on_element_selected():
 	var selected_item = elements_tree.get_selected()
 	if not selected_item:
 		return
-	
-	var element = selected_item.get_metadata(0)
-	if not element:
+
+	var metadata = selected_item.get_metadata(0)
+	if not metadata:
 		return
-	
-	selected_element = element
-	highlight_element(element)
+
+	var element = null
+	if metadata is HTMLParser.HTMLElement:
+		element = metadata
+	else:
+		var current_item = selected_item
+		while current_item and not element:
+			var current_metadata = current_item.get_metadata(0)
+			if current_metadata is HTMLParser.HTMLElement:
+				element = current_metadata
+				break
+			current_item = current_item.get_parent()
+
+	if element:
+		selected_element = element
+		highlight_element(element)
 
 func _on_element_activated():
 	_on_element_selected()
@@ -266,19 +330,32 @@ func _on_tree_gui_input(event: InputEvent):
 		var selected_item = elements_tree.get_selected()
 		if not selected_item:
 			return
-		
-		var element = selected_item.get_metadata(0)
-		if not element:
+
+		var metadata = selected_item.get_metadata(0)
+		if not metadata:
 			return
-		
-		var context_menu = PopupMenu.new()
-		context_menu.add_item("Copy Element", 0)
-		context_menu.size = Vector2(140, 30)
-		context_menu.position = get_global_mouse_position()
-		add_child(context_menu)
-		
-		context_menu.id_pressed.connect(_on_context_menu_selected.bind(context_menu, element))
-		context_menu.popup()
+
+		var element = null
+		if metadata is HTMLParser.HTMLElement:
+			element = metadata
+		else:
+			var current_item = selected_item
+			while current_item and not element:
+				var current_metadata = current_item.get_metadata(0)
+				if current_metadata is HTMLParser.HTMLElement:
+					element = current_metadata
+					break
+				current_item = current_item.get_parent()
+
+		if element:
+			var context_menu = PopupMenu.new()
+			context_menu.add_item("Copy Element", 0)
+			context_menu.size = Vector2(140, 30)
+			context_menu.position = get_global_mouse_position()
+			add_child(context_menu)
+
+			context_menu.id_pressed.connect(_on_context_menu_selected.bind(context_menu, element))
+			context_menu.popup()
 
 func _on_context_menu_selected(id: int, context_menu: PopupMenu, element: HTMLParser.HTMLElement):
 	match id:

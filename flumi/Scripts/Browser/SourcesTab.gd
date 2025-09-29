@@ -96,22 +96,9 @@ func get_resource_type_from_request(request: NetworkRequest) -> String:
 		NetworkRequest.RequestType.FONT:
 			return "font"
 		NetworkRequest.RequestType.FETCH:
-			var url = request.url.to_lower()
-			var mime_type = request.mime_type.to_lower()
-			if "script" in mime_type or url.ends_with(".js"):
-				return "script"
-			elif "css" in mime_type or url.ends_with(".css"):
-				return "css"
-			elif "image" in mime_type or url.ends_with(".png") or url.ends_with(".jpg") or url.ends_with(".jpeg") or url.ends_with(".gif") or url.ends_with(".svg"):
-				return "image"
-			elif "audio" in mime_type or url.ends_with(".mp3") or url.ends_with(".wav") or url.ends_with(".ogg"):
-				return "audio"
-			elif "font" in mime_type or url.ends_with(".ttf") or url.ends_with(".woff") or url.ends_with(".woff2"):
-				return "font"
-			elif url.ends_with(".html") or url.ends_with(".htm"):
-				return "html"
-			else:
-				return "other"
+			# Skip FETCH requests that are API calls (no file extension or not actual files)
+			# These are now properly classified as FETCH only if they're not file-like
+			return "skip"
 		_:
 			return "other"
 
@@ -168,9 +155,12 @@ func add_network_resources_to_tree_with_requests(root: TreeItem, network_request
 	
 	for request in network_requests:
 		var type = get_resource_type_from_request(request)
+		if type == "skip":
+			continue 
+
 		if not resources_by_type.has(type):
 			resources_by_type[type] = []
-		
+
 		var file_info = {
 			"name": request.name,
 			"url": request.url,

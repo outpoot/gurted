@@ -11,6 +11,14 @@ var current_tab: Tab = null
 func _ready():
 	connect_console_signals()
 	tab_container.tab_selected.connect(_on_tab_selected)
+	visibility_changed.connect(_on_devtools_visibility_changed)
+
+func _on_devtools_visibility_changed():
+	if visible:
+		# Update all tabs when DevTools becomes visible
+		update_elements_tab()
+		update_sources_tab()
+		update_application_tab()
 
 func connect_console_signals():
 	if console:
@@ -35,23 +43,21 @@ func _on_tab_selected(tab_index: int):
 		sources_tab.update_file_tree()
 	elif tab_index == 4 and application_tab:
 		update_application_tab()
+		application_tab.update_crumbs_tree()
 
 func update_elements_tab():
 	var main_scene = Engine.get_main_loop().current_scene
 	if main_scene and main_scene.has_method("get_active_tab"):
 		var active_tab = main_scene.get_active_tab()
-		if active_tab != current_tab:
-			current_tab = active_tab
-			if elements_tab:
-				elements_tab.set_current_tab(active_tab)
-				elements_tab.update_elements_tree()
+		current_tab = active_tab
+		if elements_tab:
+			elements_tab.set_current_tab(active_tab)
 
 func update_sources_tab():
 	var main_scene = Engine.get_main_loop().current_scene
 	if main_scene and main_scene.has_method("get_active_tab"):
 		var active_tab = main_scene.get_active_tab()
-		if active_tab != current_tab:
-			current_tab = active_tab
+		current_tab = active_tab
 		if sources_tab:
 			sources_tab.set_current_tab(active_tab)
 
@@ -59,10 +65,9 @@ func update_application_tab():
 	var main_scene = Engine.get_main_loop().current_scene
 	if main_scene and main_scene.has_method("get_active_tab"):
 		var active_tab = main_scene.get_active_tab()
-		if active_tab != current_tab:
-			current_tab = active_tab
-			if application_tab:
-				application_tab.set_current_tab(active_tab)
+		current_tab = active_tab
+		if application_tab:
+			application_tab.set_current_tab(active_tab)
 
 func _on_close_button_pressed():
 	if elements_tab:

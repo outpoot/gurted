@@ -18,28 +18,30 @@ func _ready():
 	delete_crumb_btn = $HeaderContainer/ButtonContainer/DeleteCrumbBtn
 	clear_crumbs_btn = $HeaderContainer/ButtonContainer/ClearCrumbsBtn
 	search_edit = $HeaderContainer/SearchContainer/SearchEdit
-	
+
 	if crumbs_tree:
 		crumbs_tree.item_selected.connect(_on_crumb_selected)
 		crumbs_tree.gui_input.connect(_on_tree_gui_input)
-	
+
 	if add_crumb_btn:
 		add_crumb_btn.pressed.connect(_on_add_crumb)
-	
+
 	if edit_crumb_btn:
 		edit_crumb_btn.pressed.connect(_on_edit_crumb)
 	if delete_crumb_btn:
 		delete_crumb_btn.pressed.connect(_on_delete_crumb)
 	if clear_crumbs_btn:
 		clear_crumbs_btn.pressed.connect(_on_clear_crumbs)
-	
+
 	if search_edit:
 		search_edit.text_changed.connect(_on_search_changed)
-	
+
 	if edit_crumb_btn:
 		edit_crumb_btn.disabled = true
 	if delete_crumb_btn:
 		delete_crumb_btn.disabled = true
+
+	visibility_changed.connect(_on_visibility_changed)
 
 func set_current_tab(tab: Tab):
 	current_tab = tab
@@ -56,7 +58,7 @@ func set_current_tab(tab: Tab):
 func load_crumbs_for_current_tab():
 	if not current_tab:
 		return
-	
+
 	var domain = get_domain_from_url(current_tab.current_url)
 	crumbs_data = get_crumbs_for_domain(domain)
 	update_crumbs_tree()
@@ -75,27 +77,31 @@ func get_domain_from_url(url: String) -> String:
 	return ""
 
 func get_crumbs_for_domain(domain: String) -> Array[Dictionary]:
+	var dir_access = DirAccess.open("user://")
+	if not dir_access.dir_exists("crumbs"):
+		return []
+
 	var file_path = "user://crumbs/" + domain + ".json"
-	
+
 	if not FileAccess.file_exists(file_path):
 		return []
-	
+
 	var file = FileAccess.open(file_path, FileAccess.READ)
 	if not file:
 		return []
-	
+
 	var json_string = file.get_as_text()
 	file.close()
-	
+
 	var json = JSON.new()
 	var parse_result = json.parse(json_string)
 	if parse_result != OK:
 		return []
-	
+
 	var crumbs_data = json.data
 	if not crumbs_data is Dictionary:
 		return []
-	
+
 	var result: Array[Dictionary] = []
 	for crumb_name in crumbs_data:
 		var crumb_dict = crumbs_data[crumb_name]
@@ -108,7 +114,7 @@ func get_crumbs_for_domain(domain: String) -> Array[Dictionary]:
 				"lifespan": crumb_dict.get("lifespan", -1.0)
 			}
 			result.append(crumb)
-	
+
 	return result
 
 func _on_url_changed():
@@ -118,12 +124,12 @@ func _on_content_updated():
 	load_crumbs_for_current_tab()
 
 func save_crumbs_for_domain(domain: String, crumbs: Array[Dictionary]):
-	
+
 	# Ensure crumbs directory exists
-	var crumbs_dir = "user://crumbs/"
-	if not DirAccess.dir_exists_absolute(crumbs_dir):
-		DirAccess.make_dir_recursive_absolute(crumbs_dir)
-	
+	var dir_access = DirAccess.open("user://")
+	if not dir_access.dir_exists("crumbs"):
+		dir_access.make_dir("crumbs")
+
 	# Convert array to dictionary format
 	var crumbs_data = {}
 	for crumb in crumbs:
@@ -132,13 +138,13 @@ func save_crumbs_for_domain(domain: String, crumbs: Array[Dictionary]):
 			"created_at": crumb.get("created", Time.get_unix_time_from_system()),
 			"lifespan": crumb.get("lifespan", -1.0)
 		}
-	
+
 	# Save to file
-	var file_path = crumbs_dir + domain + ".json"
+	var file_path = "user://crumbs/" + domain + ".json"
 	var file = FileAccess.open(file_path, FileAccess.WRITE)
 	if not file:
 		return
-	
+
 	var json_string = JSON.stringify(crumbs_data)
 	file.store_string(json_string)
 	file.close()
@@ -166,7 +172,6 @@ func update_crumbs_tree():
 		var name = crumb.get("name", "Unnamed Crumb")
 		var value = crumb.get("value", "")
 		
-		# Filter by search text
 		if not search_text.is_empty():
 			if not name.to_lower().contains(search_text) and not value.to_lower().contains(search_text):
 				continue
@@ -357,3 +362,7 @@ func save_crumbs():
 
 func _on_search_changed(search_text: String):
 	update_crumbs_tree()
+
+func _on_visibility_changed():
+	if visible and current_tab:
+		load_crumbs_for_current_tab()
