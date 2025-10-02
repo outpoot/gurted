@@ -28,8 +28,8 @@ SettingsManager="*res://Scripts/Browser/SettingsManager.gd"
 
 [display]
 
-window/size/viewport_width=1920
-window/size/viewport_height=1080
+window/size/viewport_width=1280
+window/size/viewport_height=720
 window/stretch/aspect="ignore"
 
 [editor_plugins]
