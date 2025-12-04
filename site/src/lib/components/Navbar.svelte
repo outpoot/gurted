@@ -1,4 +1,4 @@
-/<script lang="ts">
+<script lang="ts">
   import { Button } from '$lib/components/ui/button';
   import { Download, FileText, Info } from 'lucide-svelte';
 </script>
