@@ -96,14 +96,26 @@ pub struct GurtClient {
 
 impl GurtClient {
     pub fn new() -> Self {
+        {
+            static INIT: std::sync::OnceLock<()> = std::sync::OnceLock::new();
+            INIT.get_or_init(|| {
+                let _ = rustls::crypto::ring::default_provider().install_default();
+            });
+        }
         Self {
             config: GurtClientConfig::default(),
             connection_pool: Arc::new(Mutex::new(HashMap::new())),
             dns_cache: Arc::new(Mutex::new(HashMap::new())),
         }
     }
-    
+
     pub fn with_config(config: GurtClientConfig) -> Self {
+        {
+            static INIT: std::sync::OnceLock<()> = std::sync::OnceLock::new();
+            INIT.get_or_init(|| {
+                let _ = rustls::crypto::ring::default_provider().install_default();
+            });
+        }
         Self {
             config,
             connection_pool: Arc::new(Mutex::new(HashMap::new())),
