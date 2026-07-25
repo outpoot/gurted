@@ -968,24 +968,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0cc23270f6e1808e30a928bdc84dea0b9b4136a8bc82338574f23baf47bbd280"
 
 [[package]]
-name = "gurt"
-version = "0.1.0"
-dependencies = [
- "base64 0.22.1",
- "chrono",
- "rustls 0.23.31",
- "rustls-native-certs",
- "rustls-pemfile 2.2.0",
- "serde",
- "serde_json",
- "thiserror",
- "tokio",
- "tokio-rustls",
- "tracing",
- "url",
-]
-
-[[package]]
 name = "gurted-search-engine"
 version = "0.1.0"
 dependencies = [
@@ -995,7 +977,7 @@ dependencies = [
  "clap",
  "futures",
  "glob",
- "gurt",
+ "gurtlib",
  "lol_html",
  "mime",
  "regex",
@@ -1014,6 +996,24 @@ dependencies = [
  "url",
  "urlencoding",
  "uuid",
+]
+
+[[package]]
+name = "gurtlib"
+version = "0.1.1"
+dependencies = [
+ "base64 0.22.1",
+ "chrono",
+ "rustls 0.23.31",
+ "rustls-native-certs",
+ "rustls-pemfile 2.2.0",
+ "serde",
+ "serde_json",
+ "thiserror",
+ "tokio",
+ "tokio-rustls",
+ "tracing",
+ "url",
 ]
 
 [[package]]

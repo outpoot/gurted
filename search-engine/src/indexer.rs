@@ -84,6 +84,7 @@ impl SearchEngine {
         let content_hash_field = self.schema.get_field("content_hash").unwrap();
         let icon_field = self.schema.get_field("icon").unwrap();
         let description_field = self.schema.get_field("description").unwrap();
+        let is_online_field = self.schema.get_field("is_online").unwrap();
 
         info!("Indexing {} pages...", pages.len());
 
@@ -113,7 +114,8 @@ impl SearchEngine {
                 indexed_at_field => page.indexed_at.timestamp(),
                 content_hash_field => page.content_hash.clone(),
                 icon_field => page.icon.unwrap_or_default(),
-                description_field => page.description.unwrap_or_default()
+                description_field => page.description.unwrap_or_default(),
+                is_online_field => 1i64
             ))?;
 
             indexed_count += 1;
@@ -156,6 +158,7 @@ impl SearchEngine {
         let indexed_at_field = self.schema.get_field("indexed_at").unwrap();
         let icon_field = self.schema.get_field("icon").unwrap();
         let description_field = self.schema.get_field("description").unwrap();
+        let is_online_field = self.schema.get_field("is_online").unwrap();
 
         // Create query parser for title and content fields
         let query_parser = QueryParser::for_index(
@@ -213,6 +216,11 @@ impl SearchEngine {
                 .filter(|s| !s.is_empty())
                 .map(|s| s.to_string());
 
+            let is_online = doc.get_first(is_online_field)
+                .and_then(|v| v.as_i64())
+                .map(|v| v != 0)
+                .unwrap_or(true);
+
             results.push(SearchResult {
                 url,
                 title,
@@ -222,6 +230,7 @@ impl SearchEngine {
                 indexed_at,
                 icon,
                 description,
+                is_online,
             });
         }
 
@@ -341,6 +350,7 @@ fn build_schema() -> Schema {
     schema_builder.add_text_field("content_hash", STRING | STORED);
     schema_builder.add_text_field("icon", STRING | STORED);
     schema_builder.add_text_field("description", STRING | STORED);
+    schema_builder.add_i64_field("is_online", INDEXED | STORED | FAST);
 
     schema_builder.build()
 }

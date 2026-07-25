@@ -2,6 +2,7 @@ use anyhow::{Result, Context};
 use gurtlib::prelude::*;
 use gurtlib::GurtError;
 use serde_json::json;
+use std::collections::HashMap;
 use std::sync::Arc;
 use tracing::{info, error};
 
@@ -12,12 +13,12 @@ use crate::scheduler::BackgroundScheduler;
 pub struct SearchServer {
     config: Config,
     search_engine: Arc<SearchEngine>,
+    db_pool: sqlx::PgPool,
 }
 
 impl SearchServer {
     pub async fn new(config: Config) -> Result<Self> {
-        // Connect to database
-        sqlx::PgPool::connect(&config.database_url()).await
+        let pool = sqlx::PgPool::connect(&config.database_url()).await
             .context("Failed to connect to database")?;
 
         let search_engine = Arc::new(SearchEngine::new(config.clone())?);
@@ -25,6 +26,7 @@ impl SearchServer {
         Ok(Self {
             config,
             search_engine,
+            db_pool: pool,
         })
     }
 
@@ -42,30 +44,34 @@ impl SearchServer {
 
         let search_engine = self.search_engine.clone();
         let config = self.config.clone();
+        let db_pool = self.db_pool.clone();
 
         let server = server
             .get("/search", {
                 let search_engine = search_engine.clone();
                 let config = config.clone();
+                let db_pool = db_pool.clone();
                 move |ctx| {
                     let search_engine = search_engine.clone();
                     let config = config.clone();
+                    let db_pool = db_pool.clone();
                     let path = ctx.path().to_string();
                     async move {
-                        handle_search(path, search_engine, config).await
+                        handle_search(path, search_engine, config, db_pool).await
                     }
                 }
             })
             .get("/api/search*", {
                 let search_engine = search_engine.clone();
                 let config = config.clone();
+                let db_pool = db_pool.clone();
                 move |ctx| {
                     let search_engine = search_engine.clone();
                     let config = config.clone();
-                    
+                    let db_pool = db_pool.clone();
                     let path = ctx.path().to_string();
                     async move {
-                        handle_api_search(path, search_engine, config).await
+                        handle_api_search(path, search_engine, config, db_pool).await
                     }
                 }
             })
@@ -112,13 +118,59 @@ fn parse_query_param_usize(path: &str, param: &str) -> Option<usize> {
     if value.is_empty() { None } else { value.parse().ok() }
 }
 
+async fn enrich_results_with_online_status(
+    results: &mut Vec<crate::models::SearchResult>,
+    db_pool: &sqlx::PgPool,
+) {
+    let domains: Vec<String> = results.iter()
+        .map(|r| r.domain.clone())
+        .collect::<std::collections::HashSet<_>>()
+        .into_iter()
+        .collect();
+
+    if domains.is_empty() {
+        return;
+    }
+
+    let mut online_map: HashMap<String, bool> = HashMap::new();
+
+    for domain in &domains {
+        online_map.insert(domain.clone(), true);
+    }
+
+    if let Ok(rows) = sqlx::query_as::<_, (String, Option<String>, Option<String>)>(
+        "SELECT d.name || '.' || d.tld AS domain, dcs.crawl_status, dcs.error_message
+         FROM domains d
+         LEFT JOIN domain_crawl_status dcs ON d.id = dcs.domain_id
+         WHERE d.status = 'approved'"
+    )
+    .fetch_all(db_pool)
+    .await
+    {
+        for (domain, crawl_status, _error_message) in &rows {
+            let is_online = match crawl_status.as_deref() {
+                Some("failed") => false,
+                _ => true,
+            };
+            online_map.insert(domain.clone(), is_online);
+        }
+    }
+
+    for result in results.iter_mut() {
+        if let Some(&is_online) = online_map.get(&result.domain) {
+            result.is_online = is_online;
+        }
+    }
+}
+
 async fn handle_search(
     path: String,
     search_engine: Arc<SearchEngine>,
-    config: Config
+    config: Config,
+    db_pool: sqlx::PgPool,
 ) -> Result<GurtResponse, GurtError> {
     let query = parse_query_param(&path, "q");
-    
+
     if query.is_empty() {
         return Ok(GurtResponse::bad_request()
             .with_json_body(&json!({"error": "Query parameter 'q' is required"}))?);
@@ -131,13 +183,15 @@ async fn handle_search(
         .min(config.search.max_search_results);
 
     match search_engine.search(&query, limit).await {
-        Ok(results) => {
+        Ok(mut results) => {
+            enrich_results_with_online_status(&mut results, &db_pool).await;
+
             let response = json!({
                 "query": query,
                 "results": results,
                 "count": results.len()
             });
-            
+
             Ok(GurtResponse::ok()
                 .with_header("content-type", "application/json")
                 .with_json_body(&response)?)
@@ -151,12 +205,13 @@ async fn handle_search(
 }
 
 async fn handle_api_search(
-    path: String, 
+    path: String,
     search_engine: Arc<SearchEngine>,
-    config: Config
+    config: Config,
+    db_pool: sqlx::PgPool,
 ) -> Result<GurtResponse, GurtError> {
     let query = parse_query_param(&path, "q");
-    
+
     if query.is_empty() {
         return Ok(GurtResponse::bad_request()
             .with_json_body(&json!({"error": "Query parameter 'q' is required"}))?);
@@ -171,7 +226,9 @@ async fn handle_api_search(
         .min(config.search.max_search_results);
 
     match search_engine.search_with_response(&query, page, per_page).await {
-        Ok(response) => {
+        Ok(mut response) => {
+            enrich_results_with_online_status(&mut response.results, &db_pool).await;
+
             Ok(GurtResponse::ok()
                 .with_header("content-type", "application/json")
                 .with_json_body(&response)?)

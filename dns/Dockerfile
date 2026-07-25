@@ -25,7 +25,8 @@ FROM alpine:3.19
 RUN apk add --no-cache \
     ca-certificates \
     postgresql-client \
-    wget
+    wget \
+    netcat-openbsd
 
 RUN addgroup -g 1001 -S appgroup && \
     adduser -u 1001 -S appuser -G appgroup
@@ -45,10 +46,10 @@ RUN mkdir -p /app/config /app/data /home/matt/gurted/dns/certs && \
 
 USER appuser
 
-EXPOSE 8080
+EXPOSE 4878 8876
 
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-    CMD wget --no-verbose --tries=1 --spider http://localhost:8080/health || exit 1
+    CMD nc -z localhost 4878 || exit 1
 
 # Default command
 CMD ["sh", "-c", "ls -la /home/matt/gurted/dns/certs/ && ./webx_dns --config /app/config/config.toml start"]

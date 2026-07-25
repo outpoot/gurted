@@ -24,7 +24,8 @@ FROM alpine:3.19
 RUN apk add --no-cache \
     ca-certificates \
     postgresql-client \
-    wget
+    wget \
+    netcat-openbsd
 
 RUN addgroup -g 1001 -S appgroup && \
     adduser -u 1001 -S appuser -G appgroup
@@ -39,10 +40,10 @@ RUN mkdir -p /app/config /app/data /app/search_indexes /app/certs && \
 
 USER appuser
 
-EXPOSE 8081
+EXPOSE 4880
 
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-    CMD wget --no-verbose --tries=1 --spider http://localhost:8081/health || exit 1
+    CMD nc -z localhost 4880 || exit 1
 
 # Default command - runs the server subcommand
 CMD ["./gurted-search-engine", "--config", "/app/config/config.toml", "server"]

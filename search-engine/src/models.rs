@@ -43,6 +43,7 @@ pub struct SearchResult {
     pub indexed_at: DateTime<Utc>,
     pub icon: Option<String>,
     pub description: Option<String>,
+    pub is_online: bool,
 }
 
 #[derive(Clone, Debug, Serialize)]
