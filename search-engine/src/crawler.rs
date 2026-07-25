@@ -93,24 +93,41 @@ impl DomainCrawler {
 
         match result {
             Ok(()) => {
+                let crawl_status = if stats.pages_indexed == 0 && stats.errors > 0 {
+                    "failed"
+                } else {
+                    "completed"
+                };
+                let error_msg = if crawl_status == "failed" {
+                    Some("All pages failed to crawl")
+                } else {
+                    None
+                };
+
                 info!(
-                    "Successfully crawled domain {} - {} pages found, {} indexed in {:.2}s",
+                    "{} crawled domain {} - {} pages found, {} indexed, {} errors in {:.2}s",
+                    if crawl_status == "failed" { "Failed to crawl" } else { "Successfully crawled" },
                     domain.full_domain(),
                     stats.pages_found,
                     stats.pages_indexed,
+                    stats.errors,
                     duration.as_secs_f64()
                 );
 
                 self.domain_repo
                     .update_crawl_status(
                         domain.id,
-                        "completed",
-                        None,
+                        crawl_status,
+                        error_msg,
                         Some(stats.pages_found as i32),
                         Some(self.config.search.crawl_interval_hours as i64),
                     )
                     .await
-                    .context("Failed to update crawl status to completed")?;
+                    .context("Failed to update crawl status")?;
+
+                if crawl_status == "failed" {
+                    return Err(anyhow::anyhow!("All pages failed to crawl"));
+                }
             }
             Err(e) => {
                 error!(

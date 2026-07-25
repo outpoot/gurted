@@ -4,22 +4,21 @@ local searchQuery = gurt.select('#searchQuery')
 local loading = gurt.select('#loading')
 local results = gurt.select('#results')
 local stats = gurt.select('#stats')
-local hideUnreachable = gurt.select('#hideUnreachable')
+local hideUnreachableChk = gurt.select('#hideUnreachable')
+
+local hideUnreachable = hideUnreachableChk.value
 
 local function showLoading()
     loading.classList:remove('hidden')
-
     local children = results.children
     for i = #children, 1, -1 do
         children[i]:remove()
     end
-
     stats.text = ''
 end
 
 local function displayResults(data)
     loading.classList:add('hidden')
-
     local children = results.children
     for i = #children, 1, -1 do
         children[i]:remove()
@@ -38,8 +37,7 @@ local function displayResults(data)
     local filteredResults = {}
     local hiddenCount = 0
 
-    -- Filter out unreachable pages if checkbox is checked
-    if hideUnreachable.checked then
+    if hideUnreachable then
         for i, result in ipairs(data.results) do
             if result.is_online == nil or result.is_online then
                 filteredResults[#filteredResults + 1] = result
@@ -52,8 +50,9 @@ local function displayResults(data)
     end
 
     if #filteredResults == 0 then
+        local msg = 'No reachable results found. Uncheck "Hide unreachable pages" to see everything.'
         local noResultsItem = gurt.create('div', {
-            text = 'No reachable results found. Try unchecking "Hide unreachable pages".',
+            text = msg,
             style = 'result-item'
         })
         results:append(noResultsItem)
@@ -89,7 +88,6 @@ local function displayResults(data)
             text = result.title or result.url,
             style = 'result-title'
         })
-
         headerDiv:append(titleDiv)
 
         local urlDiv = gurt.create('p', {
@@ -110,7 +108,6 @@ local function displayResults(data)
         resultItem:append(headerDiv)
         resultItem:append(urlDiv)
         resultItem:append(previewDiv)
-
         results:append(resultItem)
     end
 
@@ -123,6 +120,19 @@ local function displayResults(data)
         stats.text = 'Found ' .. totalResults .. ' result' .. (totalResults == 1 and '' or 's')
     end
 end
+
+local lastData = nil
+local function cachedDisplayResults(data)
+    lastData = data
+    displayResults(data)
+end
+
+hideUnreachableChk:on('change', function(e)
+    hideUnreachable = hideUnreachableChk.value
+    if lastData then
+        displayResults(lastData)
+    end
+end)
 
 local function performSearch(query)
     if not query or query == '' then
@@ -138,26 +148,21 @@ local function performSearch(query)
 
     if response:ok() then
         local data = response:json()
-        displayResults(data)
+        cachedDisplayResults(data)
     else
         loading.classList:add('hidden')
-
-        -- Clear all existing children from results
         local children = results.children
         for i = #children, 1, -1 do
             children[i]:remove()
         end
-
         stats.text = 'Search failed: ' .. response.status .. ' ' .. response.statusText
     end
 end
 
 local function performLuckySearch()
     showLoading()
-
     local luckyTerms = {'test', 'demo', 'api', 'web', 'site', 'page', 'home', 'index'}
     local randomTerm = luckyTerms[math.random(#luckyTerms)]
-
     local url = 'gurt://135.125.163.131:4880/api/search?q=' .. urlEncode(randomTerm) .. '&per_page=50'
     local response = fetch(url, {
         method = 'GET'
@@ -170,22 +175,18 @@ local function performLuckySearch()
             gurt.location.goto(randomResult.url)
         else
             loading.classList:add('hidden')
-
             local children = results.children
             for i = #children, 1, -1 do
                 children[i]:remove()
             end
-
             stats.text = 'No sites available for lucky search'
         end
     else
         loading.classList:add('hidden')
-
         local children = results.children
         for i = #children, 1, -1 do
             children[i]:remove()
         end
-
         stats.text = 'Lucky search failed'
     end
 end
@@ -208,26 +209,19 @@ searchQuery:on('keydown', function(e)
             performSearch(query:trim())
         end
     elseif e.key == 'Escape' then
-        -- Clear search on Escape
         searchQuery.value = ''
-
-        -- Clear results
         local children = results.children
         for i = #children, 1, -1 do
             children[i]:remove()
         end
-
         stats.text = ''
         loading.classList:add('hidden')
-
-        -- Update URL to remove query parameter
         local baseUrl = gurt.location.pathname
         if gurt.location.href ~= baseUrl then
             gurt.location.goto(baseUrl)
         end
     end
 end)
-
 
 local function checkForQueryParam()
     local url = gurt.location.href
@@ -236,16 +230,12 @@ local function checkForQueryParam()
     if queryIndex then
         local queryString = url:sub(queryIndex + 1)
         local params = {}
-
-        -- Parse query parameters
         for param in queryString:gmatch('([^&]+)') do
             local key, value = param:match('([^=]+)=(.+)')
             if key and value then
                 params[key] = urlDecode(value)
             end
         end
-
-        -- If 'q' parameter exists, populate search box and perform search
         if params.q then
             searchQuery.value = params.q
             performSearch(params.q)
@@ -253,41 +243,22 @@ local function checkForQueryParam()
         end
     end
 
-    -- Focus search input if no query parameter
     searchQuery:focus()
 end
 
 searchQuery:on('input', function()
     local query = searchQuery.value:trim()
-
     if query == '' then
-        -- Clear results when search box is empty
         local children = results.children
         for i = #children, 1, -1 do
             children[i]:remove()
         end
-
         stats.text = ''
         loading.classList:add('hidden')
-
-        -- Update URL to remove query parameter
         local baseUrl = gurt.location.pathname
         if gurt.location.href ~= baseUrl then
             gurt.location.goto(baseUrl)
         end
-    end
-end)
-
-local lastData = nil
-local realDisplayResults = displayResults
-displayResults = function(data)
-    lastData = data
-    realDisplayResults(data)
-end
-
-hideUnreachable:on('change', function()
-    if lastData then
-        displayResults(lastData)
     end
 end)
 
