@@ -3,8 +3,8 @@
   import { Download, FileText, Info } from 'lucide-svelte';
 </script>
 
-<nav class="fixed top-4 left-1/2 transform -translate-x-1/2 z-50 w-full max-w-2xl px-4">
-    <div class="bg-background backdrop-blur-xl border border-border/50 rounded-3xl px-6 py-3 shadow-2xl">
+<nav class="fixed top-4 left-1/2 backdrop-blur-none  transform -translate-x-1/2 z-50 w-full max-w-2xl">
+    <div class="bg-background/65 backdrop-blur-xl border border-border/50 rounded-3xl px-6 py-3 shadow-2xl">
     <div class="flex items-center justify-between">
       <!-- Logo and Brand -->
       <a href="/" class="flex items-center space-x-3">
