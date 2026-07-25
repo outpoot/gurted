@@ -28,7 +28,7 @@ tracing = "0.1"
 chrono = { version = "0.4", features = ["serde"] }
 
 tokio-rustls = "0.26"
-rustls = "0.23"
+rustls = { version = "0.23", default-features = false, features = ["ring", "std"] }
 rustls-pemfile = "2.0"
 rustls-native-certs = "0.8"
 base64 = "0.22"

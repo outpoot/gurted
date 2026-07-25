@@ -1,4 +1,4 @@
-FROM rustlang/rust:nightly-alpine AS builder
+FROM rust:1.88-alpine AS builder
 
 RUN apk add --no-cache \
     musl-dev \

@@ -167,13 +167,22 @@ impl GurtServer {
         self
     }
     
+    fn ensure_crypto() {
+        static INIT: std::sync::OnceLock<()> = std::sync::OnceLock::new();
+        INIT.get_or_init(|| {
+            let _ = rustls::crypto::ring::default_provider().install_default();
+        });
+    }
+
     pub fn with_tls_certificates(cert_path: &str, key_path: &str) -> Result<Self> {
+        Self::ensure_crypto();
         let mut server = Self::new();
         server.load_tls_certificates(cert_path, key_path)?;
         Ok(server)
     }
-    
+
     pub fn load_tls_certificates(&mut self, cert_path: &str, key_path: &str) -> Result<()> {
+        Self::ensure_crypto();
         info!("Loading TLS certificates: cert={}, key={}", cert_path, key_path);
         
         let cert_data = fs::read(cert_path)

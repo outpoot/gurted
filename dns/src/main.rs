@@ -1,3 +1,4 @@
+use rustls::crypto::CryptoProvider;
 mod config;
 mod gurt_server;
 mod auth;
@@ -32,6 +33,7 @@ enum Commands {
 
 #[tokio::main]
 async fn main() {
+    let _ = rustls::crypto::ring::default_provider().install_default();
     let cli = Cli::parse();
     let mut env = pretty_env_logger::formatted_builder();
     let level = cli.verbose.log_level_filter();
