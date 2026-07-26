@@ -43,8 +43,8 @@ func _resort() -> void:
 		var target_index = _find_index_from_flex_list(_flex_list, cid)
 		var flexbox: Flexbox
 
-		# If the child is not visible, remove its corresponding flexbox node
-		if not c.is_visible_in_tree():
+		# If the child shouldn't participate in layout, remove its corresponding flexbox node
+		if not _should_include_child_in_layout(c):
 			if target_index != -1:
 				_root.remove_child_at(target_index)
 				_flex_list.remove_at(target_index)
@@ -163,6 +163,15 @@ func _resort() -> void:
 		BackgroundUtils.update_background_panel(self)
 	
 	emit_signal("flex_resized")
+
+func _should_include_child_in_layout(c: Control) -> bool:
+	if not is_instance_valid(c):
+		return false
+	
+	if not c.visible or not c.is_inside_tree():
+		return false
+	
+	return true
 
 func _is_inside_background_container() -> bool:
 	var current_parent = get_parent()
