@@ -5,6 +5,7 @@ var _element: HTMLParser.HTMLElement
 var _parser: HTMLParser
 
 const BROWSER_THEME = preload("res://Scenes/Styles/BrowserText.tres")
+const AUTO_RESIZE_VISIBILITY_META := "auto_resize_visibility_watch"
 
 func init(element, parser: HTMLParser) -> void:
 	_element = element
@@ -85,6 +86,15 @@ func _apply_auto_resize_to_label(label: RichTextLabel):
 	
 	if not is_instance_valid(label) or not is_instance_valid(self):
 		return
+
+	if not label.is_visible_in_tree():
+		if not label.has_meta(AUTO_RESIZE_VISIBILITY_META):
+			label.set_meta(AUTO_RESIZE_VISIBILITY_META, true)
+			label.visibility_changed.connect(_on_label_visibility_changed.bind(label), Object.CONNECT_ONE_SHOT)
+		return
+
+	if label.has_meta(AUTO_RESIZE_VISIBILITY_META):
+		label.remove_meta(AUTO_RESIZE_VISIBILITY_META)
 	
 	var min_width = 20
 	var max_width = 800
@@ -99,10 +109,14 @@ func _apply_auto_resize_to_label(label: RichTextLabel):
 	if not is_instance_valid(label) or not is_instance_valid(self):
 		return
 	
-	var natural_width = label.size.x
-	natural_width *= 1.0
+	var content_width = 0.0
+	if label.has_method("get_content_width"):
+		content_width = label.get_content_width()
+	var natural_width = max(content_width, label.size.x)
+	if natural_width <= 0.0:
+		natural_width = label.get_minimum_size().x
 	
-	var desired_width = clampf(natural_width, min_width, max_width)
+	var desired_width = clamp(natural_width, min_width, max_width)
 	
 	label.autowrap_mode = original_autowrap
 	
@@ -114,6 +128,15 @@ func _apply_auto_resize_to_label(label: RichTextLabel):
 	label.custom_minimum_size = Vector2(desired_width, 0)
 	
 	label.queue_redraw()
+
+func _on_label_visibility_changed(label: RichTextLabel) -> void:
+	if not is_instance_valid(self) or not is_instance_valid(label):
+		return
+	
+	if label.is_visible_in_tree():
+		call_deferred("_apply_auto_resize_to_label", label)
+	else:
+		label.visibility_changed.connect(_on_label_visibility_changed.bind(label), Object.CONNECT_ONE_SHOT)
 
 func contains_hyperlink(element: HTMLParser.HTMLElement) -> bool:
 	if element.tag_name == "a":

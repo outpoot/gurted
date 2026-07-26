@@ -40,6 +40,7 @@ const CANVAS = preload("res://Scenes/Tags/canvas.tscn")
 const DOWNLOAD_MANAGER = preload("res://Scripts/Browser/DownloadManager.gd")
 
 const MIN_SIZE = Vector2i(750, 200)
+const RENDER_YIELD_BATCH := 40
 
 var font_dependent_elements: Array = []
 var current_domain = ""
@@ -47,6 +48,7 @@ var main_navigation_request: NetworkRequest = null
 var network_start_time: float = 0.0
 var network_end_time: float = 0.0
 var download_manager: DownloadManager = null
+var _render_batch_counter: int = 0
 
 func should_group_as_inline(element: HTMLParser.HTMLElement) -> bool:
 	if element.tag_name == "input":
@@ -140,17 +142,42 @@ func fetch_gurt_content_async(gurt_url: String, tab: Tab, original_url: String, 
 	main_navigation_request.type = NetworkRequest.RequestType.DOC
 	network_start_time = Time.get_ticks_msec()
 	
+	var http_request = HTTPRequest.new()
+	add_child(http_request)
+	
+	var request_info = {
+		"tab": tab,
+		"original_url": original_url,
+		"gurt_url": gurt_url,
+		"add_to_history": add_to_history,
+		"http_request": http_request
+	}
+	
+	http_request.request_completed.connect(_on_gurt_request_completed.bind(request_info))
+	
+	_start_async_gurt_request(http_request, gurt_url)
+
+func _start_async_gurt_request(http_request: HTTPRequest, gurt_url: String) -> void:
 	var thread = Thread.new()
-	var request_data = {"gurt_url": gurt_url}
+	var request_data = {"gurt_url": gurt_url, "http_request": http_request}
 	
 	thread.start(_perform_gurt_request_threaded.bind(request_data))
 	
-	while thread.is_alive():
-		await get_tree().process_frame
-	
-	var result = thread.wait_to_finish()
-	
-	_handle_gurt_result(result, tab, original_url, gurt_url, add_to_history)
+	var timer = Timer.new()
+	timer.wait_time = 0.016  # ~60 FPS check rate
+	timer.timeout.connect(_check_thread_completion.bind(thread, http_request))
+	add_child(timer)
+	timer.start()
+
+func _check_thread_completion(thread: Thread, http_request: HTTPRequest) -> void:
+	if not thread.is_alive():
+		var result = thread.wait_to_finish()
+		http_request.request_completed.emit(200 if result.success else 400, 200 if result.success else 400, PackedStringArray(), result.get("html_bytes", PackedByteArray()))
+		
+		for child in get_children():
+			if child is Timer and child.timeout.is_connected(_check_thread_completion):
+				child.queue_free()
+				break
 
 func _perform_gurt_request_threaded(request_data: Dictionary) -> Dictionary:
 	var gurt_url: String = request_data.gurt_url
@@ -174,6 +201,23 @@ func _perform_gurt_request_threaded(request_data: Dictionary) -> Dictionary:
 		return {"success": false, "error": error_msg}
 	
 	return {"success": true, "html_bytes": response.body}
+
+func _on_gurt_request_completed(result_code: int, response_code: int, headers: PackedStringArray, body: PackedByteArray, request_info: Dictionary) -> void:
+	var http_request = request_info.http_request
+	var tab = request_info.tab
+	var original_url = request_info.original_url  
+	var gurt_url = request_info.gurt_url
+	var add_to_history = request_info.add_to_history
+	
+	if is_instance_valid(http_request):
+		http_request.queue_free()
+	
+	if result_code == 200:
+		var result = {"success": true, "html_bytes": body}
+		_handle_gurt_result(result, tab, original_url, gurt_url, add_to_history)
+	else:
+		var result = {"success": false, "error": "Request failed with code: " + str(result_code)}
+		_handle_gurt_result(result, tab, original_url, gurt_url, add_to_history)
 
 func fetch_local_file_content_async(file_url: String, tab: Tab, original_url: String, add_to_history: bool = true) -> void:
 	var file_path = URLUtils.file_url_to_path(file_url)
@@ -217,11 +261,16 @@ func fetch_local_file_content_async(file_url: String, tab: Tab, original_url: St
 func handle_local_file_result(result: Dictionary, tab: Tab, original_url: String, file_url: String, add_to_history: bool = true) -> void:
 	var html_bytes = result.html_bytes
 	
-	current_domain = file_url
-	if not search_bar.has_focus():
-		search_bar.text = original_url
+	# Set current_domain only if this is the active tab
+	if tab == get_active_tab():
+		current_domain = file_url
+		if not search_bar.has_focus():
+			search_bar.text = original_url
 	
-	render_content(html_bytes)
+	# Set the tab's current URL
+	tab.set_current_url(file_url)
+	
+	render_content(html_bytes, tab)
 	
 	tab.stop_loading()
 	
@@ -233,7 +282,7 @@ func handle_local_file_result(result: Dictionary, tab: Tab, original_url: String
 func handle_local_file_error(error_message: String, tab: Tab) -> void:
 	var error_html = FileUtils.create_error_page("File Access Error", error_message)
 	
-	render_content(error_html)
+	render_content(error_html, tab)
 	
 	const FOLDER_ICON = preload("res://Assets/Icons/folder.svg")
 	tab.stop_loading()
@@ -252,11 +301,16 @@ func _handle_gurt_result(result: Dictionary, tab: Tab, original_url: String, gur
 	var html_bytes = result.html_bytes
 	network_end_time = Time.get_ticks_msec()
 	
-	current_domain = gurt_url
-	if not search_bar.has_focus():
-		search_bar.text = original_url  # Show the original input in search bar
+	# Set current_domain only if this is the active tab
+	if tab == get_active_tab():
+		current_domain = gurt_url
+		if not search_bar.has_focus():
+			search_bar.text = original_url  # Show the original input in search bar
 	
-	render_content(html_bytes)
+	# Set the tab's current URL
+	tab.set_current_url(gurt_url)
+	
+	render_content(html_bytes, tab)
 	
 	if main_navigation_request:
 		main_navigation_request.end_time = network_end_time
@@ -276,7 +330,7 @@ func _handle_gurt_result(result: Dictionary, tab: Tab, original_url: String, gur
 func handle_gurt_error(error_message: String, tab: Tab) -> void:
 	var error_html = GurtProtocol.create_error_page(error_message)
 	
-	render_content(error_html)
+	render_content(error_html, tab)
 	
 	const GLOBE_ICON = preload("res://Assets/Icons/globe.svg")
 	tab.stop_loading()
@@ -298,32 +352,45 @@ func _on_search_focus_exited() -> void:
 func render() -> void:
 	render_content(Constants.HTML_CONTENT)
 
-func render_content(html_bytes: PackedByteArray) -> void:
+func render_content(html_bytes: PackedByteArray, target_tab: Tab = null) -> void:
 	if main_navigation_request:
 		NetworkManager.clear_all_requests_except(main_navigation_request.id)
 	else:
 		NetworkManager.clear_all_requests()
 	
-	var active_tab = get_active_tab()
+	var rendering_tab = target_tab if target_tab else get_active_tab()
 	var target_container: Control
 	
-	if active_tab and active_tab.website_container:
-		target_container = active_tab.website_container
+	if rendering_tab and rendering_tab.website_container:
+		target_container = rendering_tab.website_container
 	else:
 		target_container = website_container
 		
 	if not target_container:
 		print("Error: No container available for rendering")
 		return
+
+	_reset_render_yield_state()
 	
-	if active_tab:
-		var existing_tab_lua_apis = active_tab.lua_apis
+	var was_tab_visible = false
+	var active_tab = get_active_tab()
+	var is_rendering_active_tab = (rendering_tab == active_tab)
+	var needs_visibility_restore = false
+	
+	if rendering_tab and not is_rendering_active_tab and rendering_tab.background_panel:
+		was_tab_visible = rendering_tab.background_panel.visible
+		if not was_tab_visible:
+			_copy_active_container_sizes_to_tab(rendering_tab)
+			needs_visibility_restore = true
+	
+	if rendering_tab:
+		var existing_tab_lua_apis = rendering_tab.lua_apis
 		for lua_api in existing_tab_lua_apis:
 			if is_instance_valid(lua_api):
 				lua_api.kill_script_execution()
 				remove_child(lua_api)
 				lua_api.queue_free()
-		active_tab.lua_apis.clear()
+		rendering_tab.lua_apis.clear()
 		
 		var existing_postprocess = []
 		for child in get_children():
@@ -334,8 +401,8 @@ func render_content(html_bytes: PackedByteArray) -> void:
 			remove_child(postprocess)
 			postprocess.queue_free()
 		
-		if active_tab.background_panel:
-			var existing_overlay = active_tab.background_panel.get_node_or_null("PostprocessOverlay")
+		if rendering_tab.background_panel:
+			var existing_overlay = rendering_tab.background_panel.get_node_or_null("PostprocessOverlay")
 			if existing_overlay:
 				existing_overlay.queue_free()
 	else:
@@ -363,13 +430,13 @@ func render_content(html_bytes: PackedByteArray) -> void:
 		if existing_overlay:
 			existing_overlay.queue_free()
 	
-	if target_container.get_parent() and target_container.get_parent().name == "BodyMarginContainer":
-		var body_margin_container = target_container.get_parent()
-		var scroll_container = body_margin_container.get_parent()
-		if scroll_container:
-			body_margin_container.remove_child(target_container)
-			scroll_container.remove_child(body_margin_container)
-			body_margin_container.queue_free()
+	var target_parent = target_container.get_parent()
+	if target_parent and target_parent.name == "BodyMarginContainer":
+		var scroll_container = target_parent.get_parent()
+		if scroll_container and target_container.get_parent() == target_parent and target_parent.get_parent() == scroll_container:
+			target_parent.remove_child(target_container)
+			scroll_container.remove_child(target_parent)
+			target_parent.queue_free()
 			scroll_container.add_child(target_container)
 	
 	for child in target_container.get_children():
@@ -381,20 +448,24 @@ func render_content(html_bytes: PackedByteArray) -> void:
 	
 	var parser: HTMLParser = HTMLParser.new(html_bytes)
 	var parse_result = parser.parse()
+	await _yield_for_ui()
 	
 	parser.process_styles()
+	await _yield_for_ui()
 	
 	if parse_result.external_css and not parse_result.external_css.is_empty():
 		await parser.process_external_styles(current_domain)
+		await _yield_for_ui()
 	
 	# Process and load all custom fonts defined in <font> tags
 	parser.process_fonts(current_domain)
 	FontManager.load_all_fonts()
+	await _yield_for_ui()
 	
 	if parse_result.errors.size() > 0:
 		print("Parse errors: " + str(parse_result.errors))
 	
-	var tab = active_tab
+	var tab = rendering_tab
 	
 	var title = parser.get_title()
 	tab.set_title(title)
@@ -408,7 +479,10 @@ func render_content(html_bytes: PackedByteArray) -> void:
 	var body = parser.find_first("body")
 	
 	if body:
-		var background_panel = active_tab.background_panel
+		var background_panel = rendering_tab.background_panel
+		
+		if needs_visibility_restore:
+			target_container.call_deferred("queue_redraw")
 		
 		StyleManager.apply_body_styles(body, parser, target_container, background_panel)
 		
@@ -418,8 +492,9 @@ func render_content(html_bytes: PackedByteArray) -> void:
 	
 	var lua_api = LuaAPI.new()
 	add_child(lua_api)
-	if active_tab:
-		active_tab.lua_apis.append(lua_api)
+	if rendering_tab:
+		rendering_tab.lua_apis.append(lua_api)
+		lua_api.associated_tab = rendering_tab
 	
 	lua_api.dom_parser = parser
 	
@@ -451,6 +526,7 @@ func render_content(html_bytes: PackedByteArray) -> void:
 							parser.register_dom_node(inline_element, inline_node)
 						
 						safe_add_child(hbox, inline_node)
+						await _maybe_yield_render()
 						# Handle hyperlinks for all inline elements
 						if contains_hyperlink(inline_element) and inline_node is RichTextLabel:
 							inline_node.meta_clicked.connect(handle_link_click)
@@ -458,6 +534,7 @@ func render_content(html_bytes: PackedByteArray) -> void:
 						print("Failed to create inline element node: ", inline_element.tag_name)
 
 				safe_add_child(target_container, hbox)
+				await _maybe_yield_render()
 				continue
 			
 			var element_node = await create_element_node(element, parser, target_container)
@@ -470,6 +547,7 @@ func render_content(html_bytes: PackedByteArray) -> void:
 				# ul/ol handle their own adding
 				if element.tag_name != "ul" and element.tag_name != "ol":
 					safe_add_child(target_container, element_node)
+					await _maybe_yield_render()
 					
 
 				if contains_hyperlink(element):
@@ -483,6 +561,7 @@ func render_content(html_bytes: PackedByteArray) -> void:
 			i += 1
 	
 	if scripts.size() > 0 and lua_api:
+		await _yield_for_ui()
 		parser.process_scripts(lua_api, null)
 		if parse_result.external_scripts and not parse_result.external_scripts.is_empty():
 			# Extract base URL without query parameters for script resolution
@@ -491,15 +570,83 @@ func render_content(html_bytes: PackedByteArray) -> void:
 			if query_pos != -1:
 				base_url_for_scripts = base_url_for_scripts.left(query_pos)
 			await parser.process_external_scripts(lua_api, null, base_url_for_scripts)
+		await _yield_for_ui()
 	
 	var postprocess_element = parser.process_postprocess()
 	if postprocess_element:
+		await _yield_for_ui()
 		var postprocess_node = POSTPROCESS.instantiate()
 		add_child(postprocess_node)
 		await postprocess_node.init(postprocess_element, parser)
+		await _yield_for_ui()
 	
-	active_tab.current_url = current_domain
-	active_tab.has_content = true
+	rendering_tab.current_url = current_domain
+	rendering_tab.has_content = true
+	
+	if needs_visibility_restore and rendering_tab:
+		_reset_tab_container_sizes(rendering_tab)
+	
+	rendering_tab.content_updated.emit()
+
+
+func _copy_active_container_sizes_to_tab(tab: Tab) -> void:
+	var active_container = get_active_website_container()
+	if active_container and active_container.size != Vector2.ZERO:
+		tab.website_container.size = active_container.size
+		tab.website_container.custom_minimum_size = active_container.size
+		if tab.background_panel:
+			tab.background_panel.size = active_container.get_parent().size
+			tab.background_panel.custom_minimum_size = active_container.get_parent().size
+
+func _reset_tab_container_sizes(tab: Tab) -> void:
+	if tab.website_container:
+		tab.website_container.size = Vector2.ZERO
+		tab.website_container.custom_minimum_size = Vector2.ZERO
+	if tab.background_panel:
+		tab.background_panel.size = Vector2.ZERO
+		tab.background_panel.custom_minimum_size = Vector2.ZERO
+
+func _force_layout_update(container: Control) -> void:
+	if not container:
+		return
+		
+	_force_layout_update_recursive(container)
+
+func _force_layout_update_recursive(node: Control) -> void:
+	if not node:
+		return
+	
+	# Force layout calculation on layout containers
+	if node is FlexContainer:
+		node.queue_redraw()
+		node.update_minimum_size()
+		# Force flex layout recalculation
+		if node.has_method("queue_sort"):
+			node.queue_sort()
+	elif node is VBoxContainer or node is HBoxContainer or node is GridContainer:
+		node.queue_redraw()
+		node.update_minimum_size()
+		node.queue_sort()
+	elif node is MarginContainer:
+		node.queue_redraw() 
+		node.update_minimum_size()
+	
+	# Recursively update children
+	for child in node.get_children():
+		if child is Control:
+			_force_layout_update_recursive(child)
+
+func _reset_render_yield_state() -> void:
+	_render_batch_counter = 0
+
+func _yield_for_ui() -> void:
+	await get_tree().process_frame
+
+func _maybe_yield_render() -> void:
+	_render_batch_counter += 1
+	if _render_batch_counter >= RENDER_YIELD_BATCH:
+		await get_tree().process_frame
+		_render_batch_counter = 0
 
 static func safe_add_child(parent: Node, child: Node) -> void:
 	if child.get_parent():
@@ -676,6 +823,7 @@ func create_element_node(element: HTMLParser.HTMLElement, parser: HTMLParser, co
 					if child_element.tag_name not in ["input", "textarea", "select", "button", "audio"]:
 						parser.register_dom_node(child_element, child_node)
 					safe_add_child(container_for_children, child_node)
+					await _maybe_yield_render()
 					
 					if contains_hyperlink(child_element):
 						if child_node is RichTextLabel:
