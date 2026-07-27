@@ -346,70 +346,140 @@ impl GurtClient {
     
     async fn send_request_internal(&self, host: &str, port: u16, request: GurtRequest, original_host: Option<&str>) -> Result<GurtResponse> {
         let pool_host = original_host.unwrap_or(host);
-        debug!("Sending {} {} to {}:{}", request.method, request.path, host, port);
-        
-        let mut tls_stream = self.get_pooled_connection(host, port, original_host).await?;
-        
+        let method = request.method.clone();
+        let path = request.path.clone();
         let request_data = request.to_string();
-        tls_stream.write_all(request_data.as_bytes()).await
-            .map_err(|e| GurtError::connection(format!("Failed to write request: {}", e)))?;
-        
-        let mut buffer = Vec::new();
-        let mut temp_buffer = [0u8; 8192];
-        
-        let start_time = std::time::Instant::now();
-        let mut headers_parsed = false;
-        let mut expected_body_length: Option<usize> = None;
-        let mut headers_end_pos: Option<usize> = None;
-        
-        loop {
-            if start_time.elapsed() > self.config.request_timeout {
-                return Err(GurtError::timeout("Request timeout"));
+
+        let mut last_error: Option<GurtError> = None;
+
+        'attempt: for attempt in 0..2 {
+            let mut tls_stream = if attempt == 0 {
+                self.get_pooled_connection(host, port, original_host).await?
+            } else {
+                self.perform_handshake(host, port, original_host).await?
+            };
+
+            if let Err(e) = tls_stream.write_all(request_data.as_bytes()).await {
+                let err = GurtError::connection(format!("Failed to write request: {}", e));
+                if attempt == 0 {
+                    last_error = Some(err);
+                    continue;
+                } else {
+                    return Err(err);
+                }
             }
-            
-            match timeout(Duration::from_millis(100), tls_stream.read(&mut temp_buffer)).await {
-                Ok(Ok(0)) => break,
-                Ok(Ok(n)) => {
-                    buffer.extend_from_slice(&temp_buffer[..n]);
-                    
-                    if !headers_parsed {
-                        if let Some(pos) = buffer.windows(4).position(|w| w == b"\r\n\r\n") {
-                            headers_end_pos = Some(pos + 4);
-                            headers_parsed = true;
-                            
-                            let headers_section = std::str::from_utf8(&buffer[..pos])
-                                .map_err(|e| GurtError::invalid_message(format!("Invalid UTF-8 in headers: {}", e)))?;
-                            
-                            for line in headers_section.lines().skip(1) {
-                                if line.to_lowercase().starts_with("content-length:") {
-                                    if let Some(length_str) = line.split(':').nth(1) {
-                                        expected_body_length = length_str.trim().parse().ok();
+
+            let mut buffer = Vec::new();
+            let mut temp_buffer = [0u8; 8192];
+            let start_time = std::time::Instant::now();
+            let mut headers_parsed = false;
+            let mut expected_body_length: Option<usize> = None;
+            let mut headers_end_pos: Option<usize> = None;
+            let mut connection_closed = false;
+
+            loop {
+                if start_time.elapsed() > self.config.request_timeout {
+                    return Err(GurtError::timeout("Request timeout"));
+                }
+
+                match timeout(Duration::from_millis(100), tls_stream.read(&mut temp_buffer)).await {
+                    Ok(Ok(0)) => {
+                        connection_closed = true;
+                        if buffer.is_empty() {
+                            let err = GurtError::connection("Connection closed before response");
+                            if attempt == 0 {
+                                last_error = Some(err);
+                                continue 'attempt;
+                            } else {
+                                return Err(err);
+                            }
+                        }
+                        break;
+                    }
+                    Ok(Ok(n)) => {
+                        buffer.extend_from_slice(&temp_buffer[..n]);
+
+                        if !headers_parsed {
+                            if let Some(pos) = buffer.windows(4).position(|w| w == b"\r\n\r\n") {
+                                headers_end_pos = Some(pos + 4);
+                                headers_parsed = true;
+
+                                let headers_section = std::str::from_utf8(&buffer[..pos])
+                                    .map_err(|e| GurtError::invalid_message(format!("Invalid UTF-8 in headers: {}", e)))?;
+
+                                for line in headers_section.lines().skip(1) {
+                                    if line.to_lowercase().starts_with("content-length:") {
+                                        if let Some(length_str) = line.split(':').nth(1) {
+                                            expected_body_length = length_str.trim().parse().ok();
+                                        }
                                     }
                                 }
                             }
                         }
-                    }
-                    
-                    if headers_parsed {
-                        if let (Some(headers_end), Some(expected_len)) = (headers_end_pos, expected_body_length) {
-                            if buffer.len() >= headers_end + expected_len {
+
+                        if headers_parsed {
+                            if let (Some(headers_end), Some(expected_len)) = (headers_end_pos, expected_body_length) {
+                                if buffer.len() >= headers_end + expected_len {
+                                    break;
+                                }
+                            } else {
                                 break;
                             }
-                        } else if expected_body_length.is_none() && headers_parsed {
-                            break;
                         }
                     }
-                },
-                Ok(Err(e)) => return Err(GurtError::connection(format!("Read error: {}", e))),
-                Err(_) => continue,
+                    Ok(Err(e)) => {
+                        if headers_parsed {
+                            if let (Some(headers_end), Some(expected_len)) = (headers_end_pos, expected_body_length) {
+                                if buffer.len() >= headers_end + expected_len {
+                                    connection_closed = true;
+                                    break;
+                                }
+                            }
+                        }
+                        let err = GurtError::connection(format!("Read error: {}", e));
+                        if attempt == 0 {
+                            last_error = Some(err);
+                            continue 'attempt;
+                        } else {
+                            return Err(err);
+                        }
+                    }
+                    Err(_) => continue,
+                }
             }
+
+            if let (Some(headers_end), Some(expected_len)) = (headers_end_pos, expected_body_length) {
+                if buffer.len() < headers_end + expected_len {
+                    let err = GurtError::connection("Connection closed before full response body");
+                    if attempt == 0 {
+                        last_error = Some(err);
+                        continue 'attempt;
+                    } else {
+                        return Err(err);
+                    }
+                }
+            }
+
+            if buffer.is_empty() {
+                let err = GurtError::connection("Connection closed before response");
+                if attempt == 0 {
+                    last_error = Some(err);
+                    continue 'attempt;
+                } else {
+                    return Err(err);
+                }
+            }
+
+            let response = GurtResponse::parse_bytes(&buffer)?;
+
+            if !connection_closed {
+                self.return_connection_to_pool(pool_host, port, tls_stream);
+            }
+
+            return Ok(response);
         }
-        
-        let response = GurtResponse::parse_bytes(&buffer)?;
-        
-        self.return_connection_to_pool(pool_host, port, tls_stream);
-        
-        Ok(response)
+
+        Err(last_error.unwrap_or_else(|| GurtError::connection("Connection closed before response")))
     }
     
     pub async fn get(&self, url: &str) -> Result<GurtResponse> {
