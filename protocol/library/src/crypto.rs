@@ -31,7 +31,7 @@ impl TlsConfig {
         let mut config = ServerConfig::builder()
             .with_no_client_auth()
             .with_single_cert(cert_chain, private_key)
-            .map_err(|e| GurtError::crypto(format!("TLS server config error: {}", e)))?;
+            .map_err(|e| GurtError::Crypto(format!("TLS server config error: {}", e)))?;
         
         config.alpn_protocols = vec![GURT_ALPN.to_vec()];
         
@@ -43,13 +43,13 @@ impl TlsConfig {
     
     pub fn get_connector(&self) -> Result<TlsConnector> {
         let config = self.client_config.as_ref()
-            .ok_or_else(|| GurtError::crypto("No client config available"))?;
+            .ok_or_else(|| GurtError::Crypto("No client config available".to_string()))?;
         Ok(TlsConnector::from(config.clone()))
     }
     
     pub fn get_acceptor(&self) -> Result<TlsAcceptor> {
         let config = self.server_config.as_ref()
-            .ok_or_else(|| GurtError::crypto("No server config available"))?;
+            .ok_or_else(|| GurtError::Crypto("No server config available".to_string()))?;
         Ok(TlsAcceptor::from(config.clone()))
     }
 }
@@ -84,13 +84,13 @@ impl CryptoManager {
     
     pub fn get_tls_connector(&self) -> Result<TlsConnector> {
         let config = self.tls_config.as_ref()
-            .ok_or_else(|| GurtError::crypto("No TLS config available"))?;
+            .ok_or_else(|| GurtError::Crypto("No TLS config available".to_string()))?;
         config.get_connector()
     }
     
     pub fn get_tls_acceptor(&self) -> Result<TlsAcceptor> {
         let config = self.tls_config.as_ref()
-            .ok_or_else(|| GurtError::crypto("No TLS config available"))?;
+            .ok_or_else(|| GurtError::Crypto("No TLS config available".to_string()))?;
         config.get_acceptor()
     }
 }

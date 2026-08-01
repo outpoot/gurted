@@ -66,13 +66,13 @@ enum Connection {
 impl Connection {
     async fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
         match self {
-            Connection::Plain(stream) => stream.read(buf).await.map_err(|e| GurtError::connection(e.to_string())),
+            Connection::Plain(stream) => stream.read(buf).await.map_err(|e| GurtError::Connection(e.to_string())),
         }
     }
     
     async fn write_all(&mut self, buf: &[u8]) -> Result<()> {
         match self {
-            Connection::Plain(stream) => stream.write_all(buf).await.map_err(|e| GurtError::connection(e.to_string())),
+            Connection::Plain(stream) => stream.write_all(buf).await.map_err(|e| GurtError::Connection(e.to_string())),
         }
     }
 }
@@ -178,8 +178,8 @@ impl GurtClient {
             self.config.connect_timeout,
             TcpStream::connect(&addr)
         ).await
-            .map_err(|_| GurtError::timeout("Connection timeout"))?
-            .map_err(|e| GurtError::connection(format!("Failed to connect: {}", e)))?;
+            .map_err(|_| GurtError::Timeout("Connection timeout".to_string()))?
+            .map_err(|e| GurtError::Connection(format!("Failed to connect: {}", e)))?;
         
         let conn = PooledConnection::new(stream);
         Ok(conn)
@@ -196,7 +196,7 @@ impl GurtClient {
         
         loop {
             if start_time.elapsed() > self.config.request_timeout {
-                return Err(GurtError::timeout("Response timeout"));
+                return Err(GurtError::Timeout("Response timeout".to_string()));
             }
             
             let bytes_read = conn.connection.read(&mut temp_buffer).await?;
@@ -240,7 +240,7 @@ impl GurtClient {
         }
         
         if buffer.is_empty() {
-            Err(GurtError::connection("Connection closed unexpectedly"))
+            Err(GurtError::Connection("Connection closed unexpectedly".to_string()))
         } else {
             Ok(buffer)
         }
@@ -265,12 +265,12 @@ impl GurtClient {
             self.config.handshake_timeout,
             self.read_response_data(&mut plain_conn)
         ).await
-            .map_err(|_| GurtError::timeout("Handshake timeout"))??;
+            .map_err(|_| GurtError::Timeout("Handshake timeout".to_string()))??;
         
         let handshake_response = GurtResponse::parse_bytes(&handshake_response_bytes)?;
         
         if handshake_response.status_code != 101 {
-            return Err(GurtError::protocol(format!("Handshake failed: {} {}", 
+            return Err(GurtError::Protocol(format!("Handshake failed: {} {}", 
                 handshake_response.status_code, 
                 handshake_response.status_message)));
         }
@@ -317,7 +317,7 @@ impl GurtClient {
         }
         
         if added == 0 {
-            return Err(GurtError::crypto("No valid certificates found (system or custom)".to_string()));
+            return Err(GurtError::Crypto("No valid certificates found (system or custom)".to_string()));
         }
         
         let mut client_config = TlsClientConfig::builder()
@@ -335,10 +335,10 @@ impl GurtClient {
         };
         
         let domain = ServerName::try_from(server_name.to_string())
-            .map_err(|e| GurtError::crypto(format!("Invalid server name '{}': {}", server_name, e)))?;
+            .map_err(|e| GurtError::Crypto(format!("Invalid server name '{}': {}", server_name, e)))?;
         
         let tls_stream = connector.connect(domain, stream).await
-            .map_err(|e| GurtError::crypto(format!("TLS handshake failed: {}", e)))?;
+            .map_err(|e| GurtError::Crypto(format!("TLS handshake failed: {}", e)))?;
         
         debug!("TLS connection established with {}", host);
         Ok(tls_stream)
@@ -352,7 +352,7 @@ impl GurtClient {
         
         let request_data = request.to_string();
         tls_stream.write_all(request_data.as_bytes()).await
-            .map_err(|e| GurtError::connection(format!("Failed to write request: {}", e)))?;
+            .map_err(|e| GurtError::Connection(format!("Failed to write request: {}", e)))?;
         
         let mut buffer = Vec::new();
         let mut temp_buffer = [0u8; 8192];
@@ -364,7 +364,7 @@ impl GurtClient {
         
         loop {
             if start_time.elapsed() > self.config.request_timeout {
-                return Err(GurtError::timeout("Request timeout"));
+                return Err(GurtError::Timeout("Request timeout".to_string()));
             }
             
             match timeout(Duration::from_millis(100), tls_stream.read(&mut temp_buffer)).await {
@@ -378,7 +378,7 @@ impl GurtClient {
                             headers_parsed = true;
                             
                             let headers_section = std::str::from_utf8(&buffer[..pos])
-                                .map_err(|e| GurtError::invalid_message(format!("Invalid UTF-8 in headers: {}", e)))?;
+                                .map_err(|e| GurtError::InvalidMessage(format!("Invalid UTF-8 in headers: {}", e)))?;
                             
                             for line in headers_section.lines().skip(1) {
                                 if line.to_lowercase().starts_with("content-length:") {
@@ -400,7 +400,7 @@ impl GurtClient {
                         }
                     }
                 },
-                Ok(Err(e)) => return Err(GurtError::connection(format!("Read error: {}", e))),
+                Ok(Err(e)) => return Err(GurtError::Connection(format!("Read error: {}", e))),
                 Err(_) => continue,
             }
         }
@@ -527,13 +527,13 @@ impl GurtClient {
     }
     
     fn parse_gurt_url(&self, url: &str) -> Result<(String, u16, String)> {
-        let parsed_url = Url::parse(url).map_err(|e| GurtError::invalid_message(format!("Invalid URL: {}", e)))?;
+        let parsed_url = Url::parse(url).map_err(|e| GurtError::InvalidMessage(format!("Invalid URL: {}", e)))?;
         
         if parsed_url.scheme() != "gurt" {
-            return Err(GurtError::invalid_message("URL must use gurt:// scheme"));
+            return Err(GurtError::InvalidMessage("URL must use gurt:// scheme".to_string()));
         }
         
-        let host = parsed_url.host_str().ok_or_else(|| GurtError::invalid_message("URL must have a host"))?.to_string();
+        let host = parsed_url.host_str().ok_or_else(|| GurtError::InvalidMessage("URL must have a host".to_string()))?.to_string();
         let port = parsed_url.port().unwrap_or(DEFAULT_PORT);
         let mut path = if parsed_url.path().is_empty() { "/" } else { parsed_url.path() }.to_string();
         
@@ -695,7 +695,7 @@ impl GurtClient {
         debug!("Resolving domain {} via DNS API", domain);
         
         if !self.is_ip_address(&self.config.dns_server_ip) && self.config.dns_server_ip != "localhost" {
-            return Err(GurtError::invalid_message("DNS server must be an IP address or 'localhost'"));
+            return Err(GurtError::InvalidMessage("DNS server must be an IP address or 'localhost'".to_string()));
         }
         
         let dns_server_ip = if self.config.dns_server_ip == "localhost" {
@@ -715,7 +715,7 @@ impl GurtClient {
         let dns_response = self.send_request_internal(&dns_server_ip, self.config.dns_server_port, dns_request, None).await?;
         
         if dns_response.status_code != 200 {
-            return Err(GurtError::invalid_message(format!(
+            return Err(GurtError::InvalidMessage(format!(
                 "DNS resolution failed for {}: {} {}", 
                 domain, dns_response.status_code, dns_response.status_message
             )));
@@ -723,7 +723,7 @@ impl GurtClient {
         
         let response_text = String::from_utf8_lossy(&dns_response.body);
         let dns_data: serde_json::Value = serde_json::from_str(&response_text)
-            .map_err(|e| GurtError::invalid_message(format!("Invalid DNS response JSON: {}", e)))?;
+            .map_err(|e| GurtError::InvalidMessage(format!("Invalid DNS response JSON: {}", e)))?;
         
         if let Some(records) = dns_data.get("records").and_then(|r| r.as_array()) {
             for record in records {
@@ -744,7 +744,7 @@ impl GurtClient {
             }
         }
         
-        Err(GurtError::invalid_message(format!("No A record found for domain {}", domain)))
+        Err(GurtError::InvalidMessage(format!("No A record found for domain {}", domain)))
     }
     
     fn is_ip_address(&self, addr: &str) -> bool {

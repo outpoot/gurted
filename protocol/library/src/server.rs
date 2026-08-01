@@ -186,24 +186,24 @@ impl GurtServer {
         info!("Loading TLS certificates: cert={}, key={}", cert_path, key_path);
         
         let cert_data = fs::read(cert_path)
-            .map_err(|e| GurtError::crypto(format!("Failed to read certificate file '{}': {}", cert_path, e)))?;
+            .map_err(|e| GurtError::Crypto(format!("Failed to read certificate file '{}': {}", cert_path, e)))?;
         
         let key_data = fs::read(key_path)
-            .map_err(|e| GurtError::crypto(format!("Failed to read private key file '{}': {}", key_path, e)))?;
+            .map_err(|e| GurtError::Crypto(format!("Failed to read private key file '{}': {}", key_path, e)))?;
         
         let mut cursor = std::io::Cursor::new(cert_data);
         let certs: Vec<CertificateDer<'static>> = rustls_pemfile::certs(&mut cursor)
             .collect::<std::result::Result<Vec<_>, _>>()
-            .map_err(|e| GurtError::crypto(format!("Failed to parse certificates: {}", e)))?;
+            .map_err(|e| GurtError::Crypto(format!("Failed to parse certificates: {}", e)))?;
         
         if certs.is_empty() {
-            return Err(GurtError::crypto("No certificates found in certificate file"));
+            return Err(GurtError::Crypto("No certificates found in certificate file".to_string()));
         }
         
         let mut key_cursor = std::io::Cursor::new(key_data);
         let private_key = rustls_pemfile::private_key(&mut key_cursor)
-            .map_err(|e| GurtError::crypto(format!("Failed to parse private key: {}", e)))?
-            .ok_or_else(|| GurtError::crypto("No private key found in key file"))?;
+            .map_err(|e| GurtError::Crypto(format!("Failed to parse private key: {}", e)))?
+            .ok_or_else(|| GurtError::Crypto("No private key found in key file".to_string()))?;
         
         let tls_config = TlsConfig::new_server(certs, private_key)?;
         self.tls_acceptor = Some(tls_config.get_acceptor()?);
@@ -314,14 +314,14 @@ impl GurtServer {
         if let Some(tls_acceptor) = &self.tls_acceptor {
             info!("Upgrading connection to TLS for {}", addr);
             let tls_stream = tls_acceptor.accept(stream).await
-                .map_err(|e| GurtError::crypto(format!("TLS upgrade failed: {}", e)))?;
+                .map_err(|e| GurtError::Crypto(format!("TLS upgrade failed: {}", e)))?;
             
             info!("TLS upgrade completed for {}", addr);
             
             self.handle_tls_connection(tls_stream, addr).await
         } else {
             warn!("No TLS configuration available, but handshake completed - this violates GURT protocol");
-            Err(GurtError::protocol("TLS is required after handshake but no TLS configuration available"))
+            Err(GurtError::Protocol("TLS is required after handshake but no TLS configuration available".to_string()))
         }
     }
     
@@ -332,7 +332,7 @@ impl GurtServer {
         loop {
             let bytes_read = stream.read(&mut temp_buffer).await?;
             if bytes_read == 0 {
-                return Err(GurtError::connection("Connection closed during handshake"));
+                return Err(GurtError::Connection("Connection closed during handshake".to_string()));
             }
             
             buffer.extend_from_slice(&temp_buffer[..bytes_read]);
@@ -343,7 +343,7 @@ impl GurtServer {
             }
             
             if buffer.len() > MAX_MESSAGE_SIZE {
-                return Err(GurtError::protocol("Handshake message too large"));
+                return Err(GurtError::Protocol("Handshake message too large".to_string()));
             }
         }
         
@@ -354,11 +354,11 @@ impl GurtServer {
                 if request.method == GurtMethod::HANDSHAKE {
                     self.send_handshake_response(stream, addr, &request).await
                 } else {
-                    Err(GurtError::protocol("First message must be HANDSHAKE"))
+                    Err(GurtError::Protocol("First message must be HANDSHAKE".to_string()))
                 }
             }
             GurtMessage::Response(_) => {
-                Err(GurtError::protocol("Server received response during handshake"))
+                Err(GurtError::Protocol("Server received response during handshake".to_string()))
             }
         }
     }
@@ -435,7 +435,7 @@ impl GurtServer {
         match message {
             GurtMessage::Request(request) => {
                 if request.method == GurtMethod::HANDSHAKE {
-                    Err(GurtError::protocol("Received HANDSHAKE over TLS - protocol violation"))
+                    Err(GurtError::Protocol("Received HANDSHAKE over TLS - protocol violation".to_string()))
                 } else {
                     self.handle_encrypted_request(tls_stream, addr, &request).await
                 }
