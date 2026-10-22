@@ -50,8 +50,12 @@ impl RateLimitState {
         let now = chrono::Utc::now();
         let window_start = now - chrono::Duration::seconds(window_secs);
 
+        if limits.len() > 10_000 {
+            limits.retain(|_, stamps| stamps.iter().any(|&timestamp| timestamp > window_start));
+        }
+
         let entry = limits.entry(key.to_string()).or_insert_with(Vec::new);
-        
+
         entry.retain(|&timestamp| timestamp > window_start);
         
         if entry.len() >= max_requests {
@@ -140,8 +144,26 @@ impl GurtHandler for AppHandler {
                 HandlerType::GetDomains => routes::get_domains(&ctx, app_state).await,
                 HandlerType::GetTlds => routes::get_tlds(app_state).await,
                 HandlerType::CheckDomain => routes::check_domain(&ctx, app_state).await,
-                HandlerType::Register => auth_routes::register(&ctx, app_state).await,
-                HandlerType::Login => auth_routes::login(&ctx, app_state).await,
+                HandlerType::Register => {
+                    if let Some(ref rate_limit_state) = rate_limit_state {
+                        let client_ip = ctx.client_ip().to_string();
+                        if !rate_limit_state.check_rate_limit(&format!("register:{}", client_ip), 600, 5).await {
+                            return Ok(GurtResponse::new(GurtStatusCode::TooLarge).with_string_body("Rate limit exceeded: 5 registrations per 10 minutes"));
+                        }
+                    }
+
+                    auth_routes::register(&ctx, app_state).await
+                },
+                HandlerType::Login => {
+                    if let Some(ref rate_limit_state) = rate_limit_state {
+                        let client_ip = ctx.client_ip().to_string();
+                        if !rate_limit_state.check_rate_limit(&format!("login:{}", client_ip), 300, 10).await {
+                            return Ok(GurtResponse::new(GurtStatusCode::TooLarge).with_string_body("Rate limit exceeded: 10 login attempts per 5 minutes"));
+                        }
+                    }
+
+                    auth_routes::login(&ctx, app_state).await
+                },
                 HandlerType::GetUserInfo => handle_authenticated!(ctx, app_state, auth_routes::get_user_info),
                 HandlerType::CreateInvite => handle_authenticated!(ctx, app_state, auth_routes::create_invite),
                 HandlerType::RedeemInvite => handle_authenticated!(ctx, app_state, auth_routes::redeem_invite),
@@ -232,8 +254,8 @@ pub async fn start(cli: crate::Cli) -> std::io::Result<()> {
         .route(Route::get("/domains"), AppHandler { app_state: app_state.clone(), rate_limit_state: None, handler_type: HandlerType::GetDomains })
         .route(Route::get("/tlds"), AppHandler { app_state: app_state.clone(), rate_limit_state: None, handler_type: HandlerType::GetTlds })
         .route(Route::get("/check"), AppHandler { app_state: app_state.clone(), rate_limit_state: None, handler_type: HandlerType::CheckDomain })
-        .route(Route::post("/auth/register"), AppHandler { app_state: app_state.clone(), rate_limit_state: None, handler_type: HandlerType::Register })
-        .route(Route::post("/auth/login"), AppHandler { app_state: app_state.clone(), rate_limit_state: None, handler_type: HandlerType::Login })
+        .route(Route::post("/auth/register"), AppHandler { app_state: app_state.clone(), rate_limit_state: Some(rate_limit_state.clone()), handler_type: HandlerType::Register })
+        .route(Route::post("/auth/login"), AppHandler { app_state: app_state.clone(), rate_limit_state: Some(rate_limit_state.clone()), handler_type: HandlerType::Login })
         .route(Route::get("/auth/me"), AppHandler { app_state: app_state.clone(), rate_limit_state: None, handler_type: HandlerType::GetUserInfo })
         .route(Route::post("/auth/invite"), AppHandler { app_state: app_state.clone(), rate_limit_state: None, handler_type: HandlerType::CreateInvite })
         .route(Route::post("/auth/redeem-invite"), AppHandler { app_state: app_state.clone(), rate_limit_state: None, handler_type: HandlerType::RedeemInvite })

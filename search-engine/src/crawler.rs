@@ -38,6 +38,7 @@ impl DomainCrawler {
             user_agent: config.search.crawler_user_agent.clone(),
             max_redirects: config.crawler.max_redirects,
             custom_ca_certificates: vec![ca_cert, ARSON_CA.to_string()],
+            block_private_addresses: true,
             ..Default::default()
         };
         
@@ -216,7 +217,12 @@ impl DomainCrawler {
                     break;
                 }
             } else if directive == "allow" {
-                if !value.is_empty() {
+                let same_host_path = value.starts_with('/')
+                    && !value.starts_with("//")
+                    && !value.contains('@')
+                    && !value.contains('\\')
+                    && !value.contains("://");
+                if !value.is_empty() && same_host_path {
                     let full_url = Self::normalize_url(format!("{}{}", base_url, value));
                     debug!("Added allowed URL from clanker.txt: {}", full_url);
                     allowed_urls.push(full_url);

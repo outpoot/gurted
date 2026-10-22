@@ -27,6 +27,33 @@ pub struct GurtClientConfig {
     pub dns_server_ip: String,
     pub dns_server_port: u16,
     pub read_timeout: Duration,
+    pub block_private_addresses: bool,
+}
+
+fn is_public_ip(ip: &std::net::IpAddr) -> bool {
+    match ip {
+        std::net::IpAddr::V4(a) => {
+            let o = a.octets();
+            !(a.is_loopback()
+                || a.is_private()
+                || a.is_link_local()
+                || a.is_unspecified()
+                || a.is_broadcast()
+                || a.is_multicast()
+                || a.is_documentation()
+                || (o[0] == 100 && (o[1] & 0xC0) == 64)
+                || o[0] >= 240)
+        }
+        std::net::IpAddr::V6(a) => {
+            let s = a.segments();
+            !(a.is_loopback()
+                || a.is_unspecified()
+                || a.is_multicast()
+                || (s[0] & 0xfe00) == 0xfc00
+                || (s[0] & 0xffc0) == 0xfe80
+                || a.to_ipv4_mapped().is_some())
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -54,6 +81,7 @@ impl Default for GurtClientConfig {
             dns_server_ip: "135.125.163.131".to_string(),
             dns_server_port: 4878,
             read_timeout: Duration::from_secs(5),
+            block_private_addresses: false,
         }
     }
 }
@@ -685,10 +713,20 @@ impl GurtClient {
         }
         
         if self.is_ip_address(domain) {
+            if self.config.block_private_addresses {
+                if let Ok(ip) = domain.parse::<std::net::IpAddr>() {
+                    if !is_public_ip(&ip) {
+                        return Err(GurtError::invalid_message(format!("Refusing to connect to non-public address {}", domain)));
+                    }
+                }
+            }
             return Ok(domain.to_string());
         }
-        
+
         if domain == "localhost" {
+            if self.config.block_private_addresses {
+                return Err(GurtError::invalid_message("Refusing to connect to localhost".to_string()));
+            }
             return Ok("127.0.0.1".to_string());
         }
         
@@ -732,6 +770,12 @@ impl GurtClient {
                     record.get("value").and_then(|v| v.as_str())
                 ) {
                     if record_type == "A" {
+                        if self.config.block_private_addresses {
+                            match value.parse::<std::net::IpAddr>() {
+                                Ok(ip) if is_public_ip(&ip) => {}
+                                _ => continue,
+                            }
+                        }
                         debug!("Resolved {} to {}", domain, value);
                         
                         if let Ok(mut cache) = self.dns_cache.lock() {
