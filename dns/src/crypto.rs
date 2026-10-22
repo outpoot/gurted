@@ -87,13 +87,10 @@ pub fn sign_csr_with_ca(
     let context = cert_builder.x509v3_context(Some(&ca_cert), None);
     
     let mut san_builder = openssl::x509::extension::SubjectAlternativeName::new();
-    san_builder
-        .dns(domain)
-        .dns("localhost")
-        .ip("127.0.0.1");
-    
+    san_builder.dns(domain);
+
     if let Some(ip) = client_ip {
-        if is_valid_ip(ip) && ip != "127.0.0.1" {
+        if is_valid_ip(ip) && is_public_ipv4(ip) {
             san_builder.ip(ip);
             println!("Added client IP {} to certificate for {}", ip, domain);
         }
@@ -122,6 +119,23 @@ pub fn sign_csr_with_ca(
     Ok(String::from_utf8(cert_pem)?)
 }
 
+
+fn is_public_ipv4(ip: &str) -> bool {
+    match ip.parse::<std::net::Ipv4Addr>() {
+        Ok(a) => {
+            let o = a.octets();
+            !(a.is_loopback()
+                || a.is_private()
+                || a.is_link_local()
+                || a.is_unspecified()
+                || a.is_broadcast()
+                || a.is_multicast()
+                || a.is_documentation()
+                || (o[0] == 100 && (o[1] & 0xC0) == 64))
+        }
+        Err(_) => false,
+    }
+}
 
 fn is_valid_ip(ip: &str) -> bool {
     ip.split('.')
