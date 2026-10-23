@@ -636,9 +636,9 @@ func _on_request_item_clicked(request: NetworkRequest):
 
 func _on_filter_selected(index: int):
 	var filter_type = index - 1 # 0 -> -1 (All), 1 -> 0 (Fetch)...
-	
+
 	if current_filter == filter_type:
 		return
-	
+
 	current_filter = filter_type
 	apply_filter()

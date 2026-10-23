@@ -113,7 +113,7 @@ func extract_name_from_url(request_url: String) -> String:
 
 func determine_type_from_url(request_url: String) -> RequestType:
 	var lower_url = request_url.to_lower()
-	
+
 	if lower_url.ends_with(".html") or lower_url.ends_with(".htm"):
 		return RequestType.DOC
 	elif lower_url.ends_with(".css"):
@@ -126,7 +126,7 @@ func determine_type_from_url(request_url: String) -> RequestType:
 		return RequestType.IMG
 	elif lower_url.begins_with("ws://") or lower_url.begins_with("wss://"):
 		return RequestType.SOCKET
-	
+
 	if not mime_type.is_empty():
 		var lower_mime = mime_type.to_lower()
 		if lower_mime.begins_with("text/html"):
@@ -137,10 +137,39 @@ func determine_type_from_url(request_url: String) -> RequestType:
 			return RequestType.IMG
 		elif lower_mime.begins_with("font/") or lower_mime == "application/font-woff" or lower_mime == "application/font-woff2":
 			return RequestType.FONT
-	
+
+	# Only classify as FETCH if it's from Lua AND doesn't have file-like characteristics
+	# This prevents API calls and JSON requests from being shown in Sources tab
 	if is_from_lua:
+		# Check if it looks like a file request (has extension or file-like path)
+		if "." in request_url and not request_url.ends_with("/"):
+			# Extract filename part
+			var path_parts = request_url.split("/")
+			var filename = ""
+			for part in path_parts:
+				if "." in part:
+					filename = part
+					break
+
+			if not filename.is_empty():
+				var extension = filename.split(".")[-1].to_lower()
+				# If it has a file extension, classify based on that
+				if extension in ["html", "htm", "css", "lua", "luau", "woff", "woff2", "ttf", "otf", "png", "jpg", "jpeg", "gif", "webp", "svg", "bmp"]:
+					# Re-determine type based on extension
+					if extension in ["html", "htm"]:
+						return RequestType.DOC
+					elif extension == "css":
+						return RequestType.CSS
+					elif extension in ["lua", "luau"]:
+						return RequestType.LUA
+					elif extension in ["woff", "woff2", "ttf", "otf"]:
+						return RequestType.FONT
+					elif extension in ["png", "jpg", "jpeg", "gif", "webp", "svg", "bmp"]:
+						return RequestType.IMG
+
+		# If it doesn't look like a file request, classify as FETCH
 		return RequestType.FETCH
-	
+
 	return RequestType.OTHER
 
 func set_response(response_status_code: int, response_status_text: String, response_headers_dict: Dictionary, response_body_content: String, body_bytes: PackedByteArray = []):

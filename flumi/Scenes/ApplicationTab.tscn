@@ -1,0 +1,62 @@
+[gd_scene load_steps=2 format=3 uid="uid://bsivfby5t88hg"]
+
+[ext_resource type="Script" path="res://Scripts/Browser/ApplicationTab.gd" id="1_0x1y2"]
+
+[node name="ApplicationTab" type="VBoxContainer"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+script = ExtResource("1_0x1y2")
+
+[node name="HeaderContainer" type="VBoxContainer" parent="."]
+layout_mode = 2
+size_flags_vertical = 0
+
+[node name="SearchContainer" type="HBoxContainer" parent="HeaderContainer"]
+layout_mode = 2
+size_flags_vertical = 0
+
+[node name="SearchLabel" type="Label" parent="HeaderContainer/SearchContainer"]
+layout_mode = 2
+text = "Filter:"
+custom_minimum_size = Vector2(50, 0)
+vertical_alignment = 1
+
+[node name="SearchEdit" type="LineEdit" parent="HeaderContainer/SearchContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+placeholder_text = "Search crumbs..."
+
+[node name="ButtonContainer" type="HBoxContainer" parent="HeaderContainer"]
+layout_mode = 2
+size_flags_vertical = 0
+
+[node name="AddCrumbBtn" type="Button" parent="HeaderContainer/ButtonContainer"]
+layout_mode = 2
+text = "Add Crumb"
+custom_minimum_size = Vector2(100, 0)
+
+[node name="EditCrumbBtn" type="Button" parent="HeaderContainer/ButtonContainer"]
+layout_mode = 2
+text = "Edit"
+custom_minimum_size = Vector2(80, 0)
+
+[node name="DeleteCrumbBtn" type="Button" parent="HeaderContainer/ButtonContainer"]
+layout_mode = 2
+text = "Delete"
+custom_minimum_size = Vector2(80, 0)
+
+[node name="ClearCrumbsBtn" type="Button" parent="HeaderContainer/ButtonContainer"]
+layout_mode = 2
+text = "Clear All"
+custom_minimum_size = Vector2(80, 0)
+
+[node name="MainContainer" type="VBoxContainer" parent="."]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="CrumbsTree" type="Tree" parent="MainContainer"]
+layout_mode = 2
+size_flags_vertical = 3
+custom_minimum_size = Vector2(0, 200)

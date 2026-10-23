@@ -8,6 +8,9 @@
 [ext_resource type="Theme" uid="uid://bn6rbmdy60lhr" path="res://Scenes/Styles/BrowserText.tres" id="6_8muo7"]
 [ext_resource type="Script" uid="uid://dh3jdrot4r7m3" path="res://Scripts/Browser/NetworkTab.gd" id="7_network"]
 [ext_resource type="Script" uid="uid://21a6ds271vmb" path="res://Scripts/Browser/DevTools.gd" id="25_devtools"]
+[ext_resource type="Script" path="res://Scripts/Browser/ElementsTab.gd" id="8_elements"]
+[ext_resource type="Script" path="res://Scripts/Browser/SourcesTab.gd" id="9_sources"]
+[ext_resource type="PackedScene" path="res://Scenes/ApplicationTab.tscn" id="10_application"]
 
 
 [sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_6hj4c"]
@@ -221,13 +224,41 @@ tab_alignment = 1
 current_tab = 1
 drag_to_rearrange_enabled = true
 
-[node name="Elements" type="Label" parent="DevTools/TabContainer"]
-visible = false
+[node name="Elements" type="VBoxContainer" parent="DevTools/TabContainer"]
 layout_mode = 2
-text = "Elements tab - Coming soon"
-horizontal_alignment = 1
-vertical_alignment = 1
+script = ExtResource("8_elements")
 metadata/_tab_index = 0
+
+[node name="FilterContainer" type="HBoxContainer" parent="DevTools/TabContainer/Elements"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="FilterInput" type="LineEdit" parent="DevTools/TabContainer/Elements/FilterContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+placeholder_text = "Filter elements..."
+theme_override_styles/focus = SubResource("StyleBoxFlat_ko37l")
+theme_override_styles/normal = SubResource("StyleBoxFlat_65n6c")
+
+[node name="ClearFilterButton" type="Button" parent="DevTools/TabContainer/Elements/FilterContainer"]
+custom_minimum_size = Vector2(32, 32)
+layout_mode = 2
+theme_override_constants/icon_max_width = 20
+theme_override_styles/focus = SubResource("StyleBoxEmpty_ynqb1")
+theme_override_styles/hover = SubResource("StyleBoxFlat_pqhy6")
+theme_override_styles/pressed = SubResource("StyleBoxFlat_apu5o")
+theme_override_styles/normal = SubResource("StyleBoxFlat_dderp")
+icon = ExtResource("3_6hj4c")
+icon_alignment = 1
+
+[node name="ScrollContainer" type="ScrollContainer" parent="DevTools/TabContainer/Elements"]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="ElementsTree" type="Tree" parent="DevTools/TabContainer/Elements/ScrollContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
 
 [node name="Console" type="VBoxContainer" parent="DevTools/TabContainer"]
 layout_mode = 2
@@ -299,13 +330,43 @@ auto_brace_completion_highlight_matching = true
 
 [node name="PositioningTimer" type="Timer" parent="DevTools/TabContainer/Console/InputContainer"]
 
-[node name="Sources" type="Label" parent="DevTools/TabContainer"]
-visible = false
+[node name="Sources" type="HSplitContainer" parent="DevTools/TabContainer"]
 layout_mode = 2
-text = "Sources tab - Coming soon"
+script = ExtResource("9_sources")
+metadata/_tab_index = 2
+
+[node name="FileTree" type="Tree" parent="DevTools/TabContainer/Sources"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+
+[node name="PreviewContainer" type="VBoxContainer" parent="DevTools/TabContainer/Sources"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="PreviewLabel" type="Label" parent="DevTools/TabContainer/Sources/PreviewContainer"]
+layout_mode = 2
+text = "Select a resource to preview"
 horizontal_alignment = 1
 vertical_alignment = 1
-metadata/_tab_index = 2
+
+[node name="PreviewImage" type="TextureRect" parent="DevTools/TabContainer/Sources/PreviewContainer"]
+visible = false
+layout_mode = 2
+size_flags_vertical = 3
+stretch_mode = 1
+
+[node name="PreviewText" type="TextEdit" parent="DevTools/TabContainer/Sources/PreviewContainer"]
+visible = false
+layout_mode = 2
+size_flags_vertical = 3
+editable = false
+selecting_enabled = true
+syntax_highlighter = ExtResource("5_xkykt")
+
+[node name="PreviewAudio" type="AudioStreamPlayer" parent="DevTools/TabContainer/Sources/PreviewContainer"]
+visible = false
+layout_mode = 2
 
 [node name="Network" type="VBoxContainer" parent="DevTools/TabContainer"]
 visible = false
@@ -494,12 +555,9 @@ visible = false
 layout_mode = 2
 metadata/_tab_index = 3
 
-[node name="Application" type="Label" parent="DevTools/TabContainer"]
+[node name="Application" parent="DevTools/TabContainer" instance=ExtResource("10_application")]
 visible = false
 layout_mode = 2
-text = "Application tab - Coming soon"
-horizontal_alignment = 1
-vertical_alignment = 1
 metadata/_tab_index = 4
 
 [node name="CloseButton" type="Button" parent="."]

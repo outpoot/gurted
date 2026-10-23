@@ -128,6 +128,7 @@ static func handle_element_append(operation: Dictionary, dom_parser: HTMLParser)
 	if parent_dom_node:
 		# Render the appended element
 		render_new_element.call_deferred(child_element, parent_dom_node, dom_parser)
+		emit_content_updated_signal(dom_parser)
 
 static func handle_element_remove(operation: Dictionary, dom_parser: HTMLParser) -> void:
 	var element_id: String = operation.element_id
@@ -152,6 +153,8 @@ static func handle_element_remove(operation: Dictionary, dom_parser: HTMLParser)
 	var all_elements_index = dom_parser.parse_result.all_elements.find(element)
 	if all_elements_index >= 0:
 		dom_parser.parse_result.all_elements.remove_at(all_elements_index)
+	
+	emit_content_updated_signal(dom_parser)
 
 static func handle_insert_before(operation: Dictionary, dom_parser: HTMLParser) -> void:
 	var parent_id: String = operation.parent_id
@@ -191,6 +194,8 @@ static func handle_insert_before(operation: Dictionary, dom_parser: HTMLParser) 
 		
 		if parent_dom_node:
 			handle_visual_insertion_by_reference(parent_id, new_child_element, reference_child_id, true, dom_parser)
+	
+	emit_content_updated_signal(dom_parser)
 
 static func handle_insert_after(operation: Dictionary, dom_parser: HTMLParser) -> void:
 	var parent_id: String = operation.parent_id
@@ -230,6 +235,8 @@ static func handle_insert_after(operation: Dictionary, dom_parser: HTMLParser) -
 		
 		if parent_dom_node:
 			handle_visual_insertion_by_reference(parent_id, new_child_element, reference_child_id, false, dom_parser)
+	
+	emit_content_updated_signal(dom_parser)
 
 static func handle_replace_child(operation: Dictionary, dom_parser: HTMLParser, lua_api) -> void:
 	var parent_id: String = operation.parent_id
@@ -261,6 +268,8 @@ static func handle_replace_child(operation: Dictionary, dom_parser: HTMLParser, 
 		
 		# Handle visual rendering
 		handle_visual_replacement(old_child_id, new_child_element, parent_id, dom_parser, lua_api)
+	
+	emit_content_updated_signal(dom_parser)
 
 static func render_new_element(element: HTMLParser.HTMLElement, parent_node: Node, dom_parser: HTMLParser) -> void:
 	# Get reference to main scene for rendering
@@ -413,6 +422,13 @@ static func find_element_by_id(element_id: String, dom_parser: HTMLParser) -> HT
 		return dom_parser.find_first("body")
 	else:
 		return dom_parser.find_by_id(element_id)
+
+static func emit_content_updated_signal(dom_parser: HTMLParser):
+	var main_scene = Engine.get_main_loop().current_scene
+	if main_scene and main_scene.has_method("get_active_tab"):
+		var active_tab = main_scene.get_active_tab()
+		if active_tab:
+			active_tab.content_updated.emit()
 
 static func clone_element(element: HTMLParser.HTMLElement, deep: bool) -> HTMLParser.HTMLElement:
 	var cloned = HTMLParser.HTMLElement.new(element.tag_name)

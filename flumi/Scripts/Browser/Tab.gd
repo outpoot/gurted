@@ -3,6 +3,8 @@ extends Control
 
 signal tab_pressed
 signal tab_closed
+signal content_updated
+signal url_changed
 
 @onready var gradient_texture: TextureRect = %GradientTexture
 @onready var button: Button = %Button
@@ -268,6 +270,10 @@ func toggle_dev_tools() -> void:
 		dev_tools.size_flags_stretch_ratio = 1.0
 	else:
 		scroll_container.size_flags_stretch_ratio = 1.0
+		if dev_tools.has_method("get_elements_tab"):
+			var elements_tab = dev_tools.get_elements_tab()
+			if elements_tab:
+				elements_tab.clear_highlight()
 
 func get_dev_tools_console() -> DevToolsConsole:
 	if dev_tools and dev_tools.has_method("get_console"):
@@ -309,3 +315,8 @@ func get_current_history_url() -> String:
 	if history_index >= 0 and history_index < navigation_history.size():
 		return navigation_history[history_index]
 	return ""
+
+func set_current_url(new_url: String) -> void:
+	if current_url != new_url:
+		current_url = new_url
+		url_changed.emit()
