@@ -1,4 +1,3 @@
-use std::fmt;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -38,37 +37,3 @@ pub enum GurtError {
 }
 
 pub type Result<T> = std::result::Result<T, GurtError>;
-
-impl GurtError {
-    pub fn crypto<T: fmt::Display>(msg: T) -> Self {
-        GurtError::Crypto(msg.to_string())
-    }
-    
-    pub fn protocol<T: fmt::Display>(msg: T) -> Self {
-        GurtError::Protocol(msg.to_string())
-    }
-    
-    pub fn invalid_message<T: fmt::Display>(msg: T) -> Self {
-        GurtError::InvalidMessage(msg.to_string())
-    }
-    
-    pub fn connection<T: fmt::Display>(msg: T) -> Self {
-        GurtError::Connection(msg.to_string())
-    }
-    
-    pub fn handshake<T: fmt::Display>(msg: T) -> Self {
-        GurtError::Handshake(msg.to_string())
-    }
-    
-    pub fn timeout<T: fmt::Display>(msg: T) -> Self {
-        GurtError::Timeout(msg.to_string())
-    }
-    
-    pub fn server(status: u16, message: String) -> Self {
-        GurtError::Server { status, message }
-    }
-    
-    pub fn client<T: fmt::Display>(msg: T) -> Self {
-        GurtError::Client(msg.to_string())
-    }
-}

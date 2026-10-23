@@ -28,7 +28,7 @@ impl GurtMethod {
             "OPTIONS" => Ok(Self::OPTIONS),
             "PATCH" => Ok(Self::PATCH),
             "HANDSHAKE" => Ok(Self::HANDSHAKE),
-            _ => Err(GurtError::invalid_message(format!("Unsupported method: {}", s))),
+            _ => Err(GurtError::InvalidMessage(format!("Unsupported method: {}", s))),
         }
     }
 }
@@ -93,7 +93,7 @@ impl GurtRequest {
     pub fn text(&self) -> Result<String> {
         std::str::from_utf8(&self.body)
             .map(|s| s.to_string())
-            .map_err(|e| GurtError::invalid_message(format!("Invalid UTF-8 body: {}", e)))
+            .map_err(|e| GurtError::InvalidMessage(format!("Invalid UTF-8 body: {}", e)))
     }
     
     pub fn parse(data: &str) -> Result<Self> {
@@ -114,26 +114,26 @@ impl GurtRequest {
         };
         
         let headers_str = std::str::from_utf8(headers_section)
-            .map_err(|_| GurtError::invalid_message("Invalid UTF-8 in headers"))?;
+            .map_err(|_| GurtError::InvalidMessage("Invalid UTF-8 in headers".to_string()))?;
         
         let lines: Vec<&str> = headers_str.split(HEADER_SEPARATOR).collect();
         
         if lines.is_empty() {
-            return Err(GurtError::invalid_message("Empty request"));
+            return Err(GurtError::InvalidMessage("Empty request".to_string()));
         }
         
         let request_line = lines[0];
         let parts: Vec<&str> = request_line.split_whitespace().collect();
         
         if parts.len() != 3 {
-            return Err(GurtError::invalid_message("Invalid request line format"));
+            return Err(GurtError::InvalidMessage("Invalid request line format".to_string()));
         }
         
         let method = GurtMethod::parse(parts[0])?;
         let path = parts[1].to_string();
         
         if !parts[2].starts_with(PROTOCOL_PREFIX) {
-            return Err(GurtError::invalid_message("Invalid protocol identifier"));
+            return Err(GurtError::InvalidMessage("Invalid protocol identifier".to_string()));
         }
         
         let version_str = &parts[2][PROTOCOL_PREFIX.len()..];
@@ -293,7 +293,7 @@ impl GurtResponse {
     pub fn text(&self) -> Result<String> {
         std::str::from_utf8(&self.body)
             .map(|s| s.to_owned())
-            .map_err(|e| GurtError::invalid_message(format!("Invalid UTF-8 body: {}", e)))
+            .map_err(|e| GurtError::InvalidMessage(format!("Invalid UTF-8 body: {}", e)))
     }
     
     pub fn is_success(&self) -> bool {
@@ -326,30 +326,30 @@ impl GurtResponse {
         };
         
         let headers_str = std::str::from_utf8(headers_section)
-            .map_err(|_| GurtError::invalid_message("Invalid UTF-8 in headers"))?;
+            .map_err(|_| GurtError::InvalidMessage("Invalid UTF-8 in headers".to_string()))?;
         
         let lines: Vec<&str> = headers_str.split(HEADER_SEPARATOR).collect();
         
         if lines.is_empty() {
-            return Err(GurtError::invalid_message("Empty response"));
+            return Err(GurtError::InvalidMessage("Empty response".to_string()));
         }
         
         let status_line = lines[0];
         let parts: Vec<&str> = status_line.splitn(3, ' ').collect();
         
         if parts.len() < 2 {
-            return Err(GurtError::invalid_message("Invalid status line format"));
+            return Err(GurtError::InvalidMessage("Invalid status line format".to_string()));
         }
         
         if !parts[0].starts_with(PROTOCOL_PREFIX) {
-            return Err(GurtError::invalid_message("Invalid protocol identifier"));
+            return Err(GurtError::InvalidMessage("Invalid protocol identifier".to_string()));
         }
         
         let version_str = &parts[0][PROTOCOL_PREFIX.len()..];
         let version = version_str.to_string();
         
         let status_code: u16 = parts[1].parse()
-            .map_err(|_| GurtError::invalid_message("Invalid status code"))?;
+            .map_err(|_| GurtError::InvalidMessage("Invalid status code".to_string()))?;
         
         let status_message = if parts.len() > 2 {
             parts[2].to_string()
@@ -466,7 +466,7 @@ impl GurtMessage {
             .unwrap_or(data.len());
         
         let first_line = std::str::from_utf8(&data[..first_line_end])
-            .map_err(|_| GurtError::invalid_message("Invalid UTF-8 in first line"))?;
+            .map_err(|_| GurtError::InvalidMessage("Invalid UTF-8 in first line".to_string()))?;
         
         if first_line.starts_with(PROTOCOL_PREFIX) {
             Ok(GurtMessage::Response(GurtResponse::parse_bytes(data)?))
