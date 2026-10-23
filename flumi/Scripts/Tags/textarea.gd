@@ -76,9 +76,19 @@ func init(element: HTMLParser.HTMLElement, parser: HTMLParser) -> void:
 
 func _on_text_changed(max_length: int) -> void:
 	var text_edit = $TextEdit as TextEdit
+	if not text_edit:
+		return
+
 	if text_edit.text.length() > max_length:
 		var cursor_pos = text_edit.get_caret_column()
 		var line_pos = text_edit.get_caret_line()
 		text_edit.text = text_edit.text.substr(0, max_length)
+		var line_count = text_edit.get_line_count()
+		if line_count == 0:
+			text_edit.set_caret_line(0)
+			text_edit.set_caret_column(0)
+			return
+		line_pos = clamp(line_pos, 0, line_count - 1)
 		text_edit.set_caret_line(line_pos)
-		text_edit.set_caret_column(min(cursor_pos, text_edit.get_line(line_pos).length()))
+		var line_text = text_edit.get_line(line_pos)
+		text_edit.set_caret_column(min(cursor_pos, line_text.length()))

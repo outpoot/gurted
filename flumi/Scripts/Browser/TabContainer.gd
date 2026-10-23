@@ -64,16 +64,13 @@ func _tab_closed(index: int) -> void:
 
 	if index <= active_tab:
 		if index == active_tab:
-			# Closed tab was active, select right neighbor (or last tab if at end)
 			if index >= tabs.size():
 				active_tab = tabs.size() - 1
 			else:
 				active_tab = index
 		else:
-			# Closed tab was before active tab, shift active index down
 			active_tab -= 1
 	
-	# Reconnect signals with updated indices
 	for i in tabs.size():
 		tabs[i].tab_pressed.disconnect(_tab_pressed)
 		tabs[i].tab_closed.disconnect(_tab_closed)
@@ -172,7 +169,11 @@ func set_active_tab(index: int) -> void:
 	if index < 0 or index >= tabs.size():
 		return
 		
+	var old_tab_index = active_tab
+		
 	if active_tab >= 0 and active_tab < tabs.size():
+		_trigger_tab_focusout(tabs[active_tab])
+		
 		tabs[active_tab].is_active = false
 		tabs[active_tab].button.add_theme_stylebox_override("normal", TAB_DEFAULT)
 		tabs[active_tab].button.add_theme_stylebox_override("pressed", TAB_DEFAULT)
@@ -187,6 +188,10 @@ func set_active_tab(index: int) -> void:
 	tabs[index].button.add_theme_stylebox_override("hover", TAB_NORMAL)
 	tabs[index].gradient_texture.texture = TAB_GRADIENT
 	tabs[index].show_content()
+	
+	if old_tab_index != index:
+		_trigger_tab_focusin(tabs[index])
+		call_deferred("_fix_tab_layout", tabs[index])
 	
 	if not tabs[index].website_container:
 		if main:
@@ -254,3 +259,57 @@ func _input(_event: InputEvent) -> void:
 
 func _on_new_tab_button_pressed() -> void:
 	create_tab()
+
+func _trigger_tab_focusout(tab: Tab) -> void:
+	if not tab or tab.lua_apis.is_empty():
+		return
+		
+	for lua_api in tab.lua_apis:
+		if is_instance_valid(lua_api):
+			lua_api._execute_body_event_callbacks("focusout")
+
+func _trigger_tab_focusin(tab: Tab) -> void:
+	if not tab or tab.lua_apis.is_empty():
+		return
+		
+	for lua_api in tab.lua_apis:
+		if is_instance_valid(lua_api):
+			lua_api._execute_body_event_callbacks("focusin")
+
+func _fix_tab_layout(tab: Tab) -> void:
+	if not tab or not tab.website_container:
+		return
+	
+	if tab.website_container.has_meta("stored_layout_valid"):
+		tab.website_container.remove_meta("stored_layout_valid")
+		_fix_container_layout_recursive(tab.website_container)
+		await get_tree().process_frame
+	else:
+		tab.website_container.call_deferred("queue_redraw")
+		if tab.background_panel:
+			tab.background_panel.call_deferred("queue_redraw")
+	
+	_fix_container_layout_recursive(tab.website_container)
+
+func _fix_container_layout_recursive(container: Control) -> void:
+	if not container:
+		return
+	
+	if container is FlexContainer:
+		container.queue_redraw()
+		container.update_minimum_size()
+		if container.has_method("queue_sort"):
+			container.queue_sort()
+		if container.has_method("_notification"):
+			container._notification(NOTIFICATION_RESIZED)
+	elif container is VBoxContainer or container is HBoxContainer or container is GridContainer:
+		container.queue_redraw()
+		container.update_minimum_size()
+		container.queue_sort()
+	elif container is MarginContainer:
+		container.queue_redraw()
+		container.update_minimum_size()
+	
+	for child in container.get_children():
+		if child is Control:
+			_fix_container_layout_recursive(child)
